@@ -1,0 +1,23 @@
+{
+  "source": "R. Lu, Y. Yang, S. Link, S. Gong, \"Low-loss 5-GHz first-order antisymmetric mode acoustic delay lines in thin-film lithium niobate,\" IEEE Trans. Microw. Theory Techn. 69(1), 541-550 (2021)",
+  "structure": "Suspended Z-cut LiNbO3, 490 nm thick, propagation along X (Z-cut phi = 0 here). Electrodes: 30 nm Al (not modelled here; the gaps are bare LN).",
+  "transducer": "50 % duty cells of length Lambda. The paper's centre frequency satisfies f Lshort / vm + f Lopen / vf = 1 (its eq. 12): the mean of the shorted and open A1 wavenumbers equals 2 pi / Lambda.",
+  "measured": {
+    "kind": "measured (Sec. V and Table III): centre frequency of the passband, and group velocity from the group delay vs gap length (gaps 20-320 um)",
+    "columns": ["group", "Lambda_um", "f_center_GHz", "vg_m_s"],
+    "rows": [
+      ["D", 2.0, 5.35, 3472],
+      ["A", 2.4, 5.0, 3289],
+      ["E", 2.4, 5.0, 3528],
+      ["C", 2.8, 4.8, 2696],
+      ["B", 3.2, 4.6, 2304]
+    ],
+    "note": "Groups A and E share Lambda = 2.4 um (N = 4 and 2). The paper gives group E's vg at 5 GHz in Fig. 25 and at 4.8 GHz in the text."
+  },
+  "simulated": {
+    "kind": "simulated (eigenmode FEA, Sec. II-B, with the paper's own constants)",
+    "fc_short_GHz": 3.66,
+    "fc_open_GHz": 4.37,
+    "open_f_vs_lambda": "f from 4.5 GHz (lambda = 6 um) to 6.0 GHz (lambda = 1.5 um), electrically open; values as rounded in the text"
+  }
+}

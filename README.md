@@ -337,6 +337,29 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - The paper's angle θ from Z is the X-cut angle φ = 90° + θ in this tool.
 - The data were read from the vector paths of the published figure.
 
+**Thin-film delay lines.** `tests/thinfilm-published.test.mjs` compares bare films (no electrodes) with published delay lines, default constants. A dash in the Test column marks a comparison without a test.
+
+| Source | Structure, mode | Quantity | Paper | This tool | Test |
+|---|---|---|---|---|---|
+| Lu et al. 2021 | 490 nm Z-cut membrane, along X, A1 | Centre frequency at Λ = 2.0 / 2.4 / 2.8 / 3.2 µm | 5.35 / 5.0 / 4.8 / 4.6 GHz, measured | 5.35 / 5.02 / 4.80 / 4.65 GHz | 2 % |
+| | | Group velocity, groups D / A / E / C / B | 3472 / 3289 / 3528 / 2696 / 2304 m/s, measured | 3678 / 3300 / 3300 / 2968 / 2520 m/s | 12 % |
+| | | Shorted cutoff | 3.66 GHz, simulated (FEA) | 3.65 GHz (λ = 50 µm) | 1 % |
+| | | Open A1 at λ = 1.5 / 6 µm | 6.0 / 4.5 GHz, simulated (FEA, rounded) | 6.12 / 4.45 GHz | 3 % |
+| Manzaneque et al. 2019 | 800 nm X-cut membrane, −10° from Y, SH0, λ = 20 µm | Shorted velocity | 3550 m/s, simulated (FEM) | 3546 m/s | 1 % |
+| | | Open velocity | 4507 m/s, simulated (FEM) | 4373 m/s | – |
+| Lin et al. 2026 | 300 nm X-cut LN / 2 µm SiO₂ / Si, along Y, Rayleigh-type | Group velocity at 1.84 GHz | 3228 m/s, measured | 3221 m/s | 2 % |
+| | 128°Y-X bulk, Rayleigh | Group velocity | 3920 m/s, measured | 3963 m/s | 2 % |
+| | 300 nm X-cut membrane, along Y, A0 | Group velocity at 1.75 GHz | 3795 m/s, measured | 3640 m/s | – |
+| | 400 nm X-cut LN on sapphire, along Y, SH | Group velocity at 1.76 GHz | 4821 m/s, measured | 5100 m/s (sapphire angle 20° to 30°) | – |
+
+- **Centre frequency:** the paper's condition for 50 % duty cells (its eq. 12): the mean of the open and shorted A1 wavenumbers is 2π/Λ. The 30 nm Al electrodes are not modelled.
+- **Group velocity:** dω/dk of the open-surface mode at the measured frequency. The measured values come from delay vs gap length.
+- **Lu et al., groups A and E:** same Λ; their measured group velocities differ by 7 %.
+- **Manzaneque et al., angle:** φ = −10° here. Of −20°, −10°, 0° and +10°, it gives the largest K² (37.8 %), as the paper's choice for the largest k².
+- **Manzaneque et al., open velocity:** with D₃ = 0 on both faces (no field outside the plate), the model gives 4493 m/s.
+- **Lin et al., LNOS:** the paper does not state the sapphire orientation. At sapphire angles 0° and 10° this SH mode is faster than sapphire's slowest bulk wave and leaks, so the tool gives no value there.
+- Bands and the LNOS, bulk and membrane velocities are read from the figures of Lin et al.; the LNOI value is in its text.
+
 ## Roadmap
 
 | Phase | Content | Status |
@@ -354,6 +377,10 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - S. Datta, *Surface Acoustic Wave Devices*, Prentice-Hall, 1986.
 - T. Kawada, M. Kawaguchi, H. Matsumoto, M. Hayashi, "Model calculations of the strains associated with surface acoustic waves," arXiv:2504.12752 (2025).
 - J. Kushibiki, I. Takanaga, M. Arakawa, T. Sannomiya, "Accurate measurements of the acoustical physical constants of LiNbO₃ and LiTaO₃ single crystals," *IEEE Trans. Ultrason. Ferroelectr. Freq. Control* 46, 1315–1323 (1999).
+- Q. Lin, Y. Yu, A. Guedeja-Marrón, C. Scolnic, H. Deng, S. Fang, Y. Zhou, B. Li, J. C. Idrobo, M. Li, "Temperature-dependent acoustic loss at microwave frequencies in thin-film lithium niobate," arXiv:2602.02797v2 (2026).
+- R. Lu, Y. Yang, S. Link, S. Gong, "Low-loss 5-GHz first-order antisymmetric mode acoustic delay lines in thin-film lithium niobate," *IEEE Trans. Microw. Theory Techn.* 69, 541–550 (2021).
+- T. Manzaneque, R. Lu, Y. Yang, S. Gong, "Low-loss and wideband acoustic delay lines," *IEEE Trans. Microw. Theory Techn.* 67, 1379–1391 (2019).
+- F. M. Mayor, W. Jiang, C. J. Sarabalis, T. P. McKenna, J. D. Witmer, A. H. Safavi-Naeini, "Gigahertz phononic integrated circuits on thin-film lithium niobate on sapphire," *Phys. Rev. Applied* 15, 014039 (2021).
 - D. Morgan, *Surface Acoustic Wave Devices*, 2nd ed., Academic Press, 2007.
 - L. Shao, D. Zhu, M. Colangelo, D. Lee, N. Sinclair, Y. Hu, P. T. Rakich, K. Lai, K. K. Berggren, M. Lončar, "Electrical control of surface acoustic waves," *Nat. Electron.* 5, 348–355 (2022).
 

@@ -1,0 +1,13 @@
+{
+  "source": "T. Manzaneque, R. Lu, Y. Yang, S. Gong, \"Low-loss and wideband acoustic delay lines,\" IEEE Trans. Microw. Theory Techn. 67(4), 1379-1391 (2019)",
+  "doi": "10.1109/TMTT.2019.2900246",
+  "structure": "Suspended X-cut LiNbO3, 800 nm thick; propagation at -10 deg from +Y (chosen in the paper for the largest k2); unit cell lambda0 = 20 um.",
+  "orientation": "X-cut phi = -10 here (phi from +Y toward +Z). The sign is the one with the larger coupling in this tool (K2 37.8 % at -10, 24.9 % at +10).",
+  "simulated": {
+    "kind": "simulated (COMSOL FEM, Sec. II-C; constants not stated)",
+    "v_open_m_s": 4507,
+    "v_shorted_m_s": 3550,
+    "v_100nm_Au_m_s": 2958,
+    "note": "The paper names the open (free) velocity v_inf and the grounded-top one v0. The 100 nm Au value includes electrode mass and is not modelled here."
+  }
+}

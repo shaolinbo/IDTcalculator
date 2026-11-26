@@ -1,0 +1,12 @@
+{
+  "source": "Q. Lin et al. (Mo Li group), \"Temperature-dependent acoustic loss at microwave frequencies in thin-film lithium niobate,\" arXiv:2602.02797v2 (2026)",
+  "kind": "measured at room temperature: group velocity from the delay of the first wave packet vs delay length",
+  "propagation": "Along LN Y on the X-cut platforms (X-cut phi = 0 here); along X on 128 deg Y-cut bulk.",
+  "columns": ["platform", "structure", "mode", "band_GHz", "vg_m_s", "where"],
+  "rows": [
+    ["LNOI", "X-cut LN 300 nm / SiO2 2 um / Si; 180 nm Al IDTs", "Rayleigh", [1.82, 1.87], 3228, "text and Fig. 2(b)"],
+    ["bulk", "128 deg Y-X LN; 180 nm Al IDTs", "Rayleigh", [2.09, 2.19], 3920, "Fig. S5(c); band read from Fig. S5(a)"],
+    ["membrane", "suspended X-cut LN 300 nm; 5 nm Ti / 95 nm Au IDTs", "A0", [1.67, 1.83], 3795, "Fig. S6(c); band read from Fig. S6(a)"],
+    ["LNOS", "X-cut LN 400 nm on sapphire (orientation not stated); 180 nm Al IDTs", "SH", [1.71, 1.81], 4821, "Fig. S4(c); band read from Fig. S4(a)"]
+  ]
+}
