@@ -1,12 +1,12 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=6fac78a005';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=6fac78a005';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=6fac78a005';
-import { solveSubstrate } from './saw/substrate.js?v=6fac78a005';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=6fac78a005';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=6fac78a005';
-import { chipFigure } from './view3d.js?v=6fac78a005';
-import { dB, abs } from './complex.js?v=6fac78a005';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=d11e120981';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=d11e120981';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=d11e120981';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=d11e120981';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=d11e120981';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=d11e120981';
+import { chipFigure } from './view3d.js?v=d11e120981';
+import { dB, abs } from './complex.js?v=d11e120981';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -21,6 +21,10 @@ const GROUPS = [
 
 const usesAngle = (key) => (s) => (PRESETS[s.cut]?.angles ?? []).includes(key);
 const usesSolver = (s) => s.cut !== 'custom' && s.mode === 'solver' && !!subState?.res?.ok;
+const massOn = (s) => s.massLoad && s.cut !== 'custom';
+const usesLoading = (s) => massOn(s) && !!loadState;
+let loadState = null; // electrodeLoading() result when "Include electrode mass" is on
+const metalOf = (s) => ({ density: s.mDens * 1000, E: s.mE * 1e9, nu: s.mNu });
 
 const FIELDS = [
   { g: 'sub', key: 'cut', label: 'Cut', type: 'select', def: '128Y',
@@ -44,18 +48,24 @@ const FIELDS = [
   { g: 'idt', key: 'Np1', label: 'Finger pairs, IDT 1', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'Np2', label: 'Finger pairs, IDT 2', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'W', label: 'Aperture W', unit: 'µm', si: 1e-6, def: 500, step: 1, min: 0 },
-  { g: 'idt', key: 'dvIdt', label: 'Velocity shift under IDTs Δv/v₀', unit: '%', si: 0.01, def: 0, step: 0.1, min: -30, max: 30, zeroOk: true },
+  { g: 'idt', key: 'dvIdt', label: 'Velocity shift under IDTs Δv/v₀', unit: '%', si: 0.01, def: 0, step: 0.1, min: -30, max: 30, zeroOk: true,
+    disabled: (s) => usesLoading(s) },
   { g: 'idt', key: 'gap', label: 'Gap between IDTs', unit: 'µm', si: 1e-6, def: 1000, step: 10, min: 0, zeroOk: true },
   { g: 'idt', key: 'loss', label: 'Propagation loss', unit: 'dB/mm', si: 1000, def: 0, step: 0.01, min: 0, zeroOk: true },
 
   { g: 'el', key: 'fingerR', label: 'Include finger resistance', type: 'check', def: true },
+  { g: 'el', key: 'massLoad', label: 'Include electrode mass (metal film model)', type: 'check', def: false,
+    show: (s) => s.cut !== 'custom' },
   { g: 'el', key: 'metal', label: 'Metal', type: 'select', def: 'Al',
     options: [...Object.entries(METALS).map(([k, m]) => [k, m.label]), ['other', 'Other']],
-    show: (s) => s.fingerR },
+    show: (s) => s.fingerR || massOn(s) },
+  { g: 'el', key: 'h', label: 'Metal thickness h', unit: 'nm', si: 1e-9, def: 100, step: 5, min: 0,
+    show: (s) => s.fingerR || massOn(s) },
   { g: 'el', key: 'rho', label: 'Resistivity ρ', unit: 'µΩ·cm', si: 1e-8, def: 2.65, step: 0.01, min: 0,
     show: (s) => s.fingerR },
-  { g: 'el', key: 'h', label: 'Metal thickness h', unit: 'nm', si: 1e-9, def: 100, step: 5, min: 0,
-    show: (s) => s.fingerR },
+  { g: 'el', key: 'mDens', label: 'Metal density', unit: 'g/cm³', si: 1000, def: 2.699, step: 0.01, min: 0, show: massOn },
+  { g: 'el', key: 'mE', label: "Young's modulus E", unit: 'GPa', si: 1e9, def: 70, step: 1, min: 0, show: massOn },
+  { g: 'el', key: 'mNu', label: 'Poisson ratio ν', unit: '', si: 1, def: 0.35, step: 0.01, min: 0, max: 0.49, zeroOk: true, show: massOn },
 
   { g: 'port', key: 'Z0', label: 'Port impedance Z₀', unit: 'Ω', si: 1, def: 50, step: 1, min: 0 },
   { g: 'port', key: 'pads', label: 'Include pads and leads', type: 'check', def: true },
@@ -130,6 +140,7 @@ function buildForm() {
       rows[f.key] = row;
       fs.append(row);
       if (f.key === 'Cs') fs.append(notes.sub = mk('p', 'note'));
+      if (f.key === 'mNu') fs.append(notes.el = mk('p', 'note'));
       if (f.key === 'W') fs.append(buttons([
         ['btn-w-re', 'W for Re Z = Z₀'], ['btn-w-abs', 'W for |Z| = Z₀ (lowest loss)'],
       ]));
@@ -224,6 +235,43 @@ function computeSubstrate(s) {
   const finiteAngles = Object.values(angles).every(Number.isFinite);
   if (!orient || !finiteAngles) return { orient: null, res: null };
   return { orient, res: solveSubstrate(orient, { set: s.consts }) };
+}
+
+/** Velocity under the IDTs from the metal film model, when "Include electrode mass" is on. */
+function computeLoading(s) {
+  if (!massOn(s) || !subState?.res?.ok) return null;
+  const h = s.h * 1e-9, f0 = s.f0 * 1e6, metal = metalOf(s);
+  if (!(h >= 0 && f0 > 0 && metal.density > 0 && metal.E > 0 && metal.nu >= 0 && metal.nu < 0.5)) return null;
+  try {
+    return electrodeLoading(subState.orient, { set: s.consts, metal, h, f0, v0: subState.res.v0 });
+  } catch { return null; }
+}
+
+// Velocity versus metal thickness for the current cut and metal (cached per cut and metal).
+const LOAD_HL = Array.from({ length: 21 }, (_, i) => i * 0.005); // h/λ = 0 … 10 %
+let loadCurve = { key: null, rows: null };
+function renderLoading(s) {
+  const sec = document.getElementById('loading');
+  const r = subState?.res;
+  sec.hidden = !(massOn(s) && r?.ok && loadState);
+  if (sec.hidden || !window.Plotly) return;
+  const metal = metalOf(s);
+  const key = JSON.stringify([s.consts, subState.orient.A, metal]);
+  if (loadCurve.key !== key) {
+    loadCurve = { key, rows: LOAD_HL.map((hl) => ({ hl, vf: filmSAW(subState.orient, s.consts, metal, hl) })) };
+  }
+  const t = theme();
+  const x = loadCurve.rows.map((q) => q.hl * 100);
+  const vf = loadCurve.rows.map((q) => q.vf ?? null);
+  const vi = loadCurve.rows.map((q) => (q.vf == null ? null : r.v0 + loadState.eta * (q.vf - r.v0)));
+  const flat = (y) => x.map(() => y);
+  const lay = baseLayout(t, 'Metal thickness h/λ (%)', 'SAW velocity (m/s)');
+  react('plot-load', [
+    line(x, vi, 'Under the IDTs (estimate)', t.s1),
+    line(x, vf, 'Continuous metal film', t.s2),
+    line(x, flat(r.v0), 'v₀, free surface', t.muted, { line: { dash: 'dash', width: 1.5 } }),
+    line(x, flat(r.vm), 'vₘ, metallized', t.muted, { line: { dash: 'dot', width: 1.5 } }),
+  ], { ...lay, shapes: [vline(loadState.hOverLambda * 100, t)] });
 }
 
 function toParams(s) {
@@ -359,7 +407,12 @@ function render(s, p, res) {
     ...(sub ? [['Slowest bulk-wave limit', `${nf(sub.vlim, 1)} m/s`]] : []),
     ['Electrode pitch p = λ/2', `${nf(S.pitch * 1e6, 3)} µm`],
     ['Wavelength under the IDTs λ / finger width λ/4', `${nf(S.lambda * 1e6, 3)} / ${nf(S.a * 1e6, 3)} µm`],
-    ['Velocity under the IDTs (Δv/v₀)', `${nf(S.vIdt, 1)} m/s (${minus(nf((p.dvIdt ?? 0) * 100, 2))} %)`],
+    ['Velocity under the IDTs (Δv/v₀)', `${nf(S.vIdt, 1)} m/s (${minus(nf((p.dvIdt ?? 0) * 100, 3))} %, ${usesLoading(s) ? 'computed' : 'entered'})`],
+    ...(usesLoading(s) ? [
+      ['Metal thickness h/λ', `${nf(loadState.hOverLambda * 100, 3)} %`],
+      ['Velocity under a continuous metal film (shorted, mass-loaded)', `${nf(loadState.vFilm, 1)} m/s`],
+      ['Under the IDTs: v₀ + η (v_film − v₀), η = 0.5', `${nf(loadState.vIdt, 1)} m/s (solver v₀ = ${nf(sub.v0, 1)} m/s)`],
+    ] : []),
     ['Free-surface wavelength v₀/f₀', `${nf(S.lambdaFree * 1e6, 3)} µm`],
     ...(sub?.ok ? [['Metallized-surface wavelength vₘ/f₀ (shorting only)', `${nf((sub.vm / p.f0) * 1e6, 3)} µm`]] : []),
     ['IDT lengths (1 / 2)', `${nf(p.Np1 * S.lambda * 1e6, 0)} / ${nf(p.Np2 * S.lambda * 1e6, 0)} µm`],
@@ -471,7 +524,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=6fac78a005', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=d11e120981', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;
@@ -601,6 +654,9 @@ function updateNotes(s) {
   if (pr?.pub && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
   notes.sub.textContent = parts.join(' ');
   notes.sub.className = warn ? 'note warn' : 'note';
+  notes.el.textContent = !massOn(s) ? ''
+    : loadState ? `Metal film model: the solver gives the exact SAW velocity under a continuous film of this metal (shorted surface, film mass and stiffness). Under the IDTs (metallization ratio η = 0.5) the tool uses v₀ + η (v_film − v₀), a first-order estimate without grating reflections. Δv/v₀ = ${minus(nf(loadState.dv * 100, 3))} % at h/λ = ${nf(loadState.hOverLambda * 100, 3)} %. Bulk metal constants; thin films can be softer.`
+      : 'Needs a computed substrate (solver) result for this cut and valid metal values.';
   notes.port.textContent = 'Reference plane: probe tips after calibration. Turn pads off to compare with de-embedded data.';
   notes.tune.textContent = s.match === 'none' ? ''
     : 'Tuning L sits between the probe and the pad. The auto value cancels the reactance of each IDT on its own; with both ports tuned, the triple-transit echo grows and the port impedance ripples around that value.';
@@ -619,8 +675,11 @@ let timer = null, npTimer = null;
 function update() {
   const s = readForm();
   subState = computeSubstrate(s);
+  loadState = computeLoading(s);
   showPoints = !!s.markers;
   const ok = refreshForm(s);
+  // Show the computed velocity shift in the (disabled) Δv/v₀ field.
+  if (usesLoading(s)) { el.dvIdt.value = nf(loadState.dv * 100, 4); s.dvIdt = Number(el.dvIdt.value); }
   // Show solver values in the (disabled) substrate fields.
   if (usesSolver(s)) {
     const r = subState.res;
@@ -631,6 +690,7 @@ function update() {
   updateNotes(s);
   updateOrientation();
   updateSubstrateSweep(s);
+  renderLoading(s);
   if (!ok) { showMsg('Some inputs are out of range (marked in red). Results show the last valid inputs.'); return; }
   let p, res;
   try {
@@ -662,7 +722,11 @@ function onCutChange() {
 
 function onMetalChange() {
   const m = METALS[el.metal.value];
-  if (m) el.rho.value = Number((m.rho * 1e8).toFixed(4));
+  if (!m) return;
+  el.rho.value = Number((m.rho * 1e8).toFixed(4));
+  el.mDens.value = Number((m.density / 1000).toFixed(4));
+  el.mE.value = Number((m.E / 1e9).toFixed(2));
+  el.mNu.value = m.nu;
 }
 
 function setW(kind) {
@@ -714,7 +778,7 @@ function init() {
   form.addEventListener('input', (e) => {
     if (e.target === el.cut) onCutChange();
     if (e.target === el.metal) onMetalChange();
-    if (e.target === el.rho) el.metal.value = 'other';
+    if ([el.rho, el.mDens, el.mE, el.mNu].includes(e.target)) el.metal.value = 'other';
     schedule();
   });
   form.addEventListener('change', schedule);

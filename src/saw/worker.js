@@ -1,5 +1,5 @@
 // Web Worker: runs angle sweeps off the main thread.
-import { sweep } from './substrate.js?v=6fac78a005';
+import { sweep } from './substrate.js?v=d11e120981';
 
 self.onmessage = (ev) => {
   const { id, fam, base, list, set } = ev.data;

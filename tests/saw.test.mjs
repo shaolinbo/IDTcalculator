@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LN_KUSHIBIKI, LN_ANDRUSHCHAK } from '../src/saw/constants.js';
-import { crystal, solveOrientation, polyRoots } from '../src/saw/solver.js';
+import { crystal, solveOrientation, polyRoots, prepare, evalAt, isoFilm, filmVelocity, expmI } from '../src/saw/solver.js';
 import { axesFromNP, axesFromEuler, rotateTensor } from '../src/saw/tensor.js';
 
 const close = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b} (tol ${tol})`);
@@ -125,4 +125,64 @@ test('power-flow angle matches the slope of v0 across directions', () => {
   const vp = solveOrientation(LN, A(30 + h), { pfa: false }).v0, vn = solveOrientation(LN, A(30 - h), { pfa: false }).v0;
   const pfa = Math.atan((vp - vn) / (2 * h * d * r.v0)) / d;
   close(r.pfa, pfa, 0.01, 'pfa (deg)');
+});
+
+// ---------------------------------------------------------------------------
+// Metal film on the surface (electrode mass loading)
+
+test('film transfer matrix: exp(iR) exp(-iR) = I', () => {
+  const R = Float64Array.from({ length: 36 }, (_, q) => Math.sin(q * 1.7) * 0.8);
+  const [Ar, Ai] = expmI(R), [Br, Bi] = expmI(R.map((x) => -x));
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 6; j++) {
+    let re = 0, im = 0;
+    for (let k = 0; k < 6; k++) { re += Ar[i * 6 + k] * Br[k * 6 + j] - Ai[i * 6 + k] * Bi[k * 6 + j]; im += Ar[i * 6 + k] * Bi[k * 6 + j] + Ai[i * 6 + k] * Br[k * 6 + j]; }
+    close(re, i === j ? 1 : 0, 1e-12, `re ${i}${j}`); close(im, 0, 1e-12, `im ${i}${j}`);
+  }
+});
+
+test('film of zero thickness gives the metallized velocity vm', () => {
+  const ln = crystal(LN_ANDRUSHCHAK), A = A128;
+  const r = solveOrientation(ln, A, { pfa: false });
+  const v = filmVelocity(prepare(ln, A), isoFilm({ rho: 2699, E: 70e9, nu: 0.35 }), 1e-9);
+  rel(v, r.vm, 1e-9, 'v_film(h -> 0)');
+});
+
+test('film of the substrate material leaves the Rayleigh velocity unchanged', () => {
+  const mu = 0.5e11, rho = 3000;
+  const iso = crystal({ rho, c11: 3 * mu, c12: mu, c13: mu, c14: 0, c33: 3 * mu, c44: mu, c66: 1.2 * mu,
+    e15: 0, e22: 0, e31: 0, e33: 0, eps11: 5, eps33: 5 });
+  const A = axesFromNP([0, 0, 1], [1, 0, 0]);
+  const vR = solveOrientation(iso, A, { pfa: false }).v0;
+  const same = isoFilm({ rho, E: 2.5 * mu, nu: 0.25 }); // lambda = mu
+  for (const kh of [0.05, 0.3, 1, 3]) rel(filmVelocity(prepare(iso, A), same, kh), vR, 1e-9, `kh ${kh}`);
+});
+
+test('film shear-horizontal rows: determinant vanishes at the analytic Love-wave velocity', () => {
+  const mu2 = 0.5e11, rho2 = 3000, v2 = Math.sqrt(mu2 / rho2);
+  const iso = crystal({ rho: rho2, c11: 3 * mu2, c12: mu2, c13: mu2, c14: 0, c33: 3 * mu2, c44: mu2, c66: mu2,
+    e15: 0, e22: 0, e31: 0, e33: 0, eps11: 5, eps33: 5 });
+  const ctx = prepare(iso, axesFromNP([0, 0, 1], [1, 0, 0]));
+  const mu1 = 0.2e11, rho1 = 4000, v1 = Math.sqrt(mu1 / rho1);
+  const film = { rho: rho1 / 1e11, lam: mu1 / 1e11, mu: mu1 / 1e11 };
+  for (const kh of [0.5, 1, 2]) {
+    // Love: tan(kh q1) = mu2 p2 / (mu1 q1), first branch, by bisection.
+    const F = (v) => { const q1 = Math.sqrt((v * v) / (v1 * v1) - 1), p2 = Math.sqrt(1 - (v * v) / (v2 * v2)); return Math.tan(kh * q1) - (mu2 * p2) / (mu1 * q1); };
+    let lo = v1 * (1 + 1e-9), hi = Math.min(v2, v1 * Math.sqrt(1 + (Math.PI / (2 * kh)) ** 2)) * (1 - 1e-12);
+    for (let k = 0; k < 200; k++) { const m = (lo + hi) / 2; if (F(lo) * F(m) <= 0) hi = m; else lo = m; }
+    const vL = (lo + hi) / 2;
+    const d = (v) => evalAt(ctx, v, false, { ...film, kh }).dFilm;
+    assert.ok(d(vL) < 1e-4 * d(vL + 20), `kh ${kh}: |det| ${d(vL)} at Love velocity ${vL} vs ${d(vL + 20)}`);
+  }
+});
+
+test('mass loading on 128°Y: velocity falls with thickness, more for heavier metals', () => {
+  const ln = crystal(LN_ANDRUSHCHAK), ctx = prepare(ln, A128);
+  const Al = isoFilm({ rho: 2699, E: 70e9, nu: 0.35 }), Au = isoFilm({ rho: 19283, E: 79e9, nu: 0.44 });
+  let prevAl = Infinity, prevAu = Infinity;
+  for (const hl of [0.005, 0.01, 0.02, 0.04]) {
+    const kh = 2 * Math.PI * hl, vAl = filmVelocity(ctx, Al, kh), vAu = filmVelocity(ctx, Au, kh);
+    assert.ok(vAl < prevAl && vAu < prevAu, `monotonic at h/lambda ${hl}`);
+    assert.ok(vAu < vAl, `Au slower than Al at h/lambda ${hl}`);
+    prevAl = vAl; prevAu = vAu;
+  }
 });

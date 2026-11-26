@@ -1,7 +1,7 @@
 // Substrate values for a cut, from the partial-wave solver, and angle sweeps.
-import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=6fac78a005';
-import { crystal, solveOrientation } from './solver.js?v=6fac78a005';
-import { orientation } from '../materials.js?v=6fac78a005';
+import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=d11e120981';
+import { crystal, solveOrientation, prepare, bulkLimit, isoFilm, filmVelocity } from './solver.js?v=d11e120981';
+import { orientation } from '../materials.js?v=d11e120981';
 
 const crystals = new Map();
 const cache = new Map();
@@ -47,4 +47,55 @@ export function sweep(fam, base, list, onProgress = () => {}, set = DEFAULT_SET)
   }
   onProgress(1);
   return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Electrode mass loading
+
+const ctxCache = new Map();
+const keyA = (orient, set) => `${set}|${orient.A.flat().map((x) => x.toFixed(12)).join(',')}`;
+function ctxFor(orient, set) {
+  const k = keyA(orient, set);
+  if (!ctxCache.has(k)) {
+    if (ctxCache.size > 50) ctxCache.clear();
+    const ctx = prepare(crystalFor(set), orient.A);
+    ctxCache.set(k, { ctx, vlim: bulkLimit(ctx) });
+  }
+  return ctxCache.get(k);
+}
+
+/**
+ * SAW velocity (m/s) under a continuous metal film of thickness h/lambda on this cut:
+ * metallized surface plus the film's mass and stiffness. metal = { density, E, nu } (SI).
+ * Null if no Rayleigh-type root is found.
+ */
+export function filmSAW(orient, set, metal, hOverLambda) {
+  const k = `${keyA(orient, set)}|${metal.density},${metal.E},${metal.nu}|${hOverLambda.toPrecision(12)}`;
+  if (!cache.has(k)) {
+    if (cache.size > 500) cache.clear();
+    const { ctx, vlim } = ctxFor(orient, set);
+    cache.set(k, filmVelocity(ctx, isoFilm({ rho: metal.density, E: metal.E, nu: metal.nu }), 2 * Math.PI * hOverLambda, vlim));
+  }
+  return cache.get(k);
+}
+
+/**
+ * First-order estimate of the SAW velocity under the IDTs: the metallization ratio eta
+ * weights the free surface (v0) and the metal-covered surface (filmSAW):
+ *   vIdt = v0 + eta (vFilm(h/lambda) - v0),  with lambda = vIdt / f0 (solved by iteration).
+ * Grating reflections and second-order (stored-energy) terms are not included.
+ */
+export function electrodeLoading(orient, { set, metal, h, f0, v0, eta = 0.5 }) {
+  let vIdt = v0, vFilm = null, hl = 0;
+  for (let it = 0; it < 20; it++) {
+    hl = (h * f0) / vIdt;
+    vFilm = filmSAW(orient, set, metal, hl);
+    if (vFilm == null) return null;
+    const next = v0 + eta * (vFilm - v0);
+    const done = Math.abs(next - vIdt) < 1e-7 * v0;
+    vIdt = next;
+    if (done) break;
+  }
+  hl = (h * f0) / vIdt;
+  return { vIdt, vFilm: filmSAW(orient, set, metal, hl), hOverLambda: hl, dv: vIdt / v0 - 1, eta };
 }

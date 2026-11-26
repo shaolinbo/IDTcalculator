@@ -42,6 +42,7 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 | Peak S21, 3-dB bandwidth | From the S21 trace |
 | Zero-to-zero bandwidth | Between the first transmission nulls on each side of the passband, from the S21 trace (one-step resolution); compared with 2f₀/N, N the larger Np |
 | Electrode pitch | p = λ/2, λ = v_IDT/f₀ the wavelength under the IDTs; finger width λ/4 |
+| Electrode mass loading | With **Include electrode mass**: velocity under a continuous metal film and under the IDTs, and its chart against h/λ |
 | Z at probe, port 1 | Includes pads, leads, finger resistance and loading by IDT 2 |
 | Bare IDT 1 | 1/(Ga + jBa + jωCt) of IDT 1 alone |
 | Group delay | −dφ/dω of S21; blank across transmission zeros (phase step > 90° between points) and where \|S21\| is more than 40 dB below its peak |
@@ -137,13 +138,36 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 - **Finger resistance:** (2/3)ρW/(a h Np), with finger width a = λ/4.
 - **Pad capacitance:** a coplanar-waveguide estimate, 2·Cs·K(k)/K(k′)·L with k = s/(s + 2g).
 
-**Heavy electrodes.** Under the IDTs the SAW is slower than on the free surface, from mass loading and electrical shorting. The model does not compute this shift. Enter it as Δv/v₀ (for example from FEM or a measured resonance); the IDT period λ = v₀(1 + Δv/v₀)/f₀, the electrode pitch λ/2 and the transit time inside the IDTs then use it, and the gap uses v₀. Details lists the wavelength under the IDTs, the free-surface wavelength v₀/f₀ and, for reference, the metallized-surface wavelength vₘ/f₀.
+**Velocity under the IDTs.** Under the IDTs the SAW is slower than on the free surface, from electrical shorting and the electrodes' mass. The IDT period λ = v₀(1 + Δv/v₀)/f₀, the electrode pitch λ/2 and the transit time inside the IDTs use the shifted velocity; the gap uses v₀. Δv/v₀ is either entered (for example from FEM or a measured resonance) or computed with **Include electrode mass** (see [Electrode mass loading](#electrode-mass-loading)). Details lists the wavelength under the IDTs, the free-surface wavelength v₀/f₀ and, for reference, the metallized-surface wavelength vₘ/f₀.
+
+### Electrode mass loading
+
+**Method.**
+
+1. **Continuous film (exact).** An isotropic metal film of thickness h covers the substrate. The film conducts, so φ = 0 at the interface. In the film, the state (u, T₃ⱼ) obeys a linear ODE in x₃; its 6×6 transfer matrix exp(iR·kh) carries the substrate's surface state to the film top, which is traction-free. The slowest root below the bulk-wave limit is v_film(h/λ). At h = 0 it equals vₘ.
+2. **Under the IDTs (estimate).** The IDT covers a fraction η = 0.5 of the surface with metal. To first order, v_IDT = v₀ + η (v_film − v₀). Since h/λ depends on λ = v_IDT/f₀, the two are solved together by iteration.
+3. **Cost.** One v_film takes about 5 ms; the estimate about 20 ms; the chart of velocity against h/λ (21 points) about 0.1 s.
+
+**Metal data** (bulk; thin films can be softer). Density, Young's modulus and Poisson ratio from the elements' Wikipedia infoboxes (Nov 2026); they can be edited on the page.
+
+| Metal | Density (g/cm³) | E (GPa) | ν |
+|---|---|---|---|
+| Al | 2.699 | 70 | 0.35 |
+| Au | 19.283 | 79 | 0.44 |
+| Cu | 8.935 | 128 | 0.34 |
+| Pt | 21.452 | 168 | 0.38 |
+
+Cu is listed as 110–128 GPa; 128 GPa matches its listed shear modulus (48 GPa) and ν = 0.34.
+
+**Example** (128°Y, φ = 0, default constants, f₀ = 220 MHz, h = 100 nm): Al gives Δv/v₀ = −1.43 % (h/λ = 0.56 %), mostly from shorting; Au gives −3.29 %.
+
+**Limits.** The estimate leaves out grating reflections, the stopband and second-order (stored-energy) terms, which depend on the electrode shape. The coupling-of-modes model in Phase 3 will add them. The film is isotropic and bonded without an adhesion layer.
 
 **Optimum aperture without tuning.** For a fixed Np, the conversion loss from a source of resistance R is lowest when |Z_IDT| = R. Choosing W for Re Z = R instead gives a smaller aperture. For 128°Y-X at 220 MHz with Np = 22, Cs = 3.61 pF/cm, K² = 5.5 % and R = 50 Ω, the two apertures are 832 µm (Re Z = R) and 992 µm (|Z| = R), and they give 6.89 dB and 6.82 dB (bare IDTs, single transit).
 
 **Limits.**
 
-- No electrode reflections, and no computed mass loading or dispersion with metal thickness; the velocity shift under the IDTs is an input.
+- No electrode reflections or stopband. The velocity under the IDTs is an input, or the first-order mass-loading estimate.
 - No diffraction. The beam walk-off from the power-flow angle is reported but not included in S21.
 - Both IDTs share one aperture and one period. The metallization ratio is fixed at 0.5.
 
@@ -174,6 +198,14 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - The zero-to-zero bandwidth equals 2f₀/max(Np₁, Np₂) within two frequency steps for Np = 22/22, 22/15 and 10/30.
 - With Δv/v₀ = −2 %, the pitch is v₀(1 + Δv/v₀)/(2f₀) and τ = gap/v₀ + (Np₁ + Np₂)/(2f₀); with no shift, τ = Lcc/v₀.
 
+**Metal film (mass loading).**
+
+- The film transfer matrix satisfies exp(iR)·exp(−iR) = I.
+- A film of zero thickness gives vₘ to 1e-9.
+- A film of the substrate's own material on an isotropic substrate leaves the Rayleigh velocity unchanged for kh = 0.05–3 (tests the in-plane and vertical film rows and the interface).
+- The boundary determinant vanishes at the analytic Love-wave velocity of an isotropic layer on an isotropic substrate, for kh = 0.5, 1 and 2 (tests the shear-horizontal film rows).
+- On 128°Y the velocity falls with thickness, faster for Au than for Al; the estimate under the IDTs is self-consistent in h/λ and lies halfway between v₀ and vₘ at h = 0.
+
 **Euler angles.**
 
 - The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
@@ -195,7 +227,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | 1 | Impulse model, delay line, probe ports, pads, export | Done |
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
-| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | Planned |
+| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | In progress: metal-film solver and mass-loading estimate done; coupling-of-modes model next |
 | 4 | Optimizer: Np, W, metallization ratio and tuning L for lowest loss or widest band, with constraints | Planned |
 | 5 (optional) | Thin-film LiNbO₃ on SiO₂/Si or sapphire | Planned |
 

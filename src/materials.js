@@ -3,8 +3,8 @@
 // Velocity, K^2 and Cs come from the partial-wave solver (src/saw/) for any
 // orientation. Published values for Y-Z and 128°Y-X are kept for comparison,
 // and the clamped-permittivity Cs estimate is kept as a quick reference.
-import { EPS0 } from './saw/constants.js?v=6fac78a005';
-import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=6fac78a005';
+import { EPS0 } from './saw/constants.js?v=d11e120981';
+import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=d11e120981';
 
 export { EPS0 };
 
@@ -95,12 +95,15 @@ export const PRESETS = {
 };
 
 /**
- * Electrode metals: typical bulk resistivity in ohm*m at 20 °C.
- * Thin films are usually more resistive; edit the value if you have a measured one.
+ * Electrode metals: typical bulk resistivity rho (ohm*m, 20 °C), and for mass loading the
+ * density (kg/m^3), Young's modulus E (Pa) and Poisson ratio nu of an isotropic film.
+ * Density, E and nu: bulk values from the elements' Wikipedia infoboxes (Nov 2026);
+ * Cu E = 128 GPa (listed range 110–128 GPa) matches its listed shear modulus 48 GPa and nu = 0.34.
+ * Thin films are usually more resistive and can be softer; edit the values if you have measured ones.
  */
 export const METALS = {
-  Al: { label: 'Al', rho: 2.65e-8 },
-  Au: { label: 'Au', rho: 2.21e-8 },
-  Cu: { label: 'Cu', rho: 1.68e-8 },
-  Pt: { label: 'Pt', rho: 10.6e-8 },
+  Al: { label: 'Al', rho: 2.65e-8, density: 2699, E: 70e9, nu: 0.35 },
+  Au: { label: 'Au', rho: 2.21e-8, density: 19283, E: 79e9, nu: 0.44 },
+  Cu: { label: 'Cu', rho: 1.68e-8, density: 8935, E: 128e9, nu: 0.34 },
+  Pt: { label: 'Pt', rho: 10.6e-8, density: 21452, E: 168e9, nu: 0.38 },
 };

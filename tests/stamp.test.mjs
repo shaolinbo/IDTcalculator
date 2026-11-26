@@ -14,3 +14,11 @@ test('module and stylesheet URLs carry the current content stamp (run `npm run s
   assert.match(html, new RegExp(`src="src/ui\\.js\\?v=${v}"`), 'entry module stamped');
   assert.match(readFileSync(join(ROOT, 'src/ui.js'), 'utf8'), new RegExp(`'\\./saw/worker\\.js\\?v=${v}'`), 'worker URL stamped');
 });
+
+test('every page module parses (node --check), including the browser-only ones', async () => {
+  const { spawnSync } = await import('node:child_process');
+  for (const f of pageFiles().filter((x) => x.endsWith('.js'))) {
+    const r = spawnSync(process.execPath, ['--check', join(ROOT, f)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, `${f}: ${r.stderr}`);
+  }
+});

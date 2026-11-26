@@ -13,8 +13,8 @@
 // length of an IDT with metallization ratio 0.5 (Cs = eps_inf).
 //
 // Units are scaled to keep all numbers O(1): c / 1e11, e / sqrt(1e11 eps0), eps / eps0.
-import { EPS0, voigt3m } from './constants.js?v=6fac78a005';
-import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=6fac78a005';
+import { EPS0, voigt3m } from './constants.js?v=d11e120981';
+import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=d11e120981';
 
 const C0 = 1e11;
 const SE = Math.sqrt(C0 * EPS0);
@@ -295,11 +295,76 @@ function hasRealRoot(ctx, v) {
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// Isotropic metal film on the surface (electrode mass loading)
+//
+// Film at 0 < x3 < h on the substrate, vacuum above; it conducts, so phi = 0 at x3 = 0.
+// State xi = (u1, u2, u3, t1, t2, t3) with t_j = T3j / (i k C0), as in the boundary rows,
+// so u and t are continuous at x3 = 0. In the film d(xi)/d(k x3) = i R xi with R real, and
+// xi(h) = exp(i R kh) xi(0). The top is traction-free: rows 3..5 of exp(i R kh) applied to
+// the substrate's surface state vanish. kh = 0 gives back the metallized surface.
+
+/** Scaled isotropic film from density (kg/m^3), Young's modulus (Pa) and Poisson ratio. */
+export function isoFilm({ rho, E, nu }) {
+  return { rho: rho / C0, lam: (E * nu) / ((1 + nu) * (1 - 2 * nu)) / C0, mu: E / (2 * (1 + nu)) / C0 };
+}
+
+const mul6 = (P, Q) => {
+  const out = new Float64Array(36);
+  for (let i = 0; i < 6; i++) for (let k = 0; k < 6; k++) {
+    const p = P[i * 6 + k];
+    if (p !== 0) for (let j = 0; j < 6; j++) out[i * 6 + j] += p * Q[k * 6 + j];
+  }
+  return out;
+};
+
+/** exp(i X) for a real 6x6 X (flat), as [re, im]; scaling and squaring with a Taylor series. */
+export function expmI(X) {
+  let nrm = 0;
+  for (let i = 0; i < 6; i++) { let r = 0; for (let j = 0; j < 6; j++) r += Math.abs(X[i * 6 + j]); nrm = Math.max(nrm, r); }
+  const s = Math.max(0, Math.ceil(Math.log2(nrm / 0.25)));
+  const Y = X.map((x) => x / 2 ** s);
+  let Er = new Float64Array(36), Ei = new Float64Array(36);
+  for (let i = 0; i < 6; i++) Er[i * 7] = 1;
+  let T = new Float64Array(36);
+  for (let i = 0; i < 6; i++) T[i * 7] = 1;
+  for (let n = 1; n <= 30; n++) {
+    T = mul6(T, Y).map((x) => x / n); // Y^n / n!
+    const sgn = n % 4 < 2 ? 1 : -1; // i^n = 1, i, -1, -i
+    const tgt = n % 2 === 0 ? Er : Ei;
+    let big = 0;
+    for (let q = 0; q < 36; q++) { tgt[q] += sgn * T[q]; big = Math.max(big, Math.abs(T[q])); }
+    if (big < 1e-18) break;
+  }
+  for (let k = 0; k < s; k++) {
+    const rr = mul6(Er, Er), ii = mul6(Ei, Ei), ri = mul6(Er, Ei), ir = mul6(Ei, Er);
+    Er = rr.map((x, q) => x - ii[q]);
+    Ei = ri.map((x, q) => x + ir[q]);
+  }
+  return [Er, Ei];
+}
+
+/** Transfer matrix exp(i R kh) of the film at phase velocity v (m/s). */
+function filmTransfer(film, v, kh) {
+  const { lam, mu, rho } = film;
+  const L2 = lam + 2 * mu, rv2 = rho * v * v, M = (4 * mu * (lam + mu)) / L2;
+  const R = new Float64Array(36);
+  const set = (r, c, x) => { R[r * 6 + c] = x * kh; };
+  set(0, 2, -1); set(0, 3, 1 / mu); //          du1 = i (t1/mu - u3)
+  set(1, 4, 1 / mu); //                         du2 = i t2/mu
+  set(2, 0, -lam / L2); set(2, 5, 1 / L2); //   du3 = i (t3 - lam u1)/(lam + 2mu)
+  set(3, 0, rv2 - M); set(3, 5, -lam / L2); //  dt1 = i ((rho v^2 - M) u1 - lam/(lam + 2mu) t3)
+  set(4, 1, rv2 - mu); //                       dt2 = i (rho v^2 - mu) u2
+  set(5, 2, rv2); set(5, 3, -1); //             dt3 = i (rho v^2 u3 - t1)
+  return expmI(R);
+}
+
 /**
  * Boundary determinants (columns normalized, so |det| is independent of phase choices)
- * and, optionally, eps_eff(v)/eps0 of the traction-free surface.
+ * and, optionally, eps_eff(v)/eps0 of the traction-free surface. With a film
+ * ({ rho, lam, mu } scaled, and kh), also dFilm for the film-covered surface.
  */
-export function evalAt(ctx, v, wantEps = false) {
+export function evalAt(ctx, v, wantEps = false, film = null) {
   const { coef, g } = detPoly(ctx, v);
   const { zr, zi } = polyRoots(coef);
   const sel = [];
@@ -372,6 +437,26 @@ export function evalAt(ctx, v, wantEps = false) {
   const dV = Math.hypot(...det4(Vr, Vi));
   const dO = det4(Or, Oi), dS = det4(Sr, Si);
   const out = { ok: true, dOpen: Math.hypot(dO[0], dO[1]) / dV, dShort: Math.hypot(dS[0], dS[1]) / dV };
+  if (film) {
+    const [Pr, Pi] = filmTransfer(film, v, film.kh);
+    const Fr = new Float64Array(16), Fi = new Float64Array(16);
+    for (let col = 0; col < 4; col++) {
+      const [ur, ui] = vecs[col];
+      const xr = [ur[0], ur[1], ur[2], Sr[col], Sr[4 + col], Sr[8 + col]];
+      const xi = [ui[0], ui[1], ui[2], Si[col], Si[4 + col], Si[8 + col]];
+      for (let r = 0; r < 3; r++) { // traction at the film top
+        let a = 0, b = 0;
+        for (let j = 0; j < 6; j++) {
+          const pr = Pr[(3 + r) * 6 + j], pi = Pi[(3 + r) * 6 + j];
+          a += pr * xr[j] - pi * xi[j]; b += pr * xi[j] + pi * xr[j];
+        }
+        Fr[r * 4 + col] = a; Fi[r * 4 + col] = b;
+      }
+      Fr[12 + col] = ur[3]; Fi[12 + col] = ui[3]; // phi = 0 under the metal
+    }
+    const dF = det4(Fr, Fi);
+    out.dFilm = Math.hypot(dF[0], dF[1]) / dV;
+  }
   if (wantEps) {
     // phi(0) = 1 on a traction-free surface: eps_eff/eps0 = 1 - i * sum(C_r D_r)
     const [xr, xi] = solveE4(Sr, Si);
@@ -454,6 +539,22 @@ export function solveContext(ctx) {
   const epsInf = e1.ok && e2.ok ? (e1.eps * v2 * v2 - e2.eps * v1 * v1) / (v2 * v2 - v1 * v1) : NaN;
   if (v0 == null || vm == null) return { ok: false, v0, vm, K2: null, epsInf, vlim };
   return { ok: true, v0, vm, K2: (2 * (v0 - vm)) / v0, epsInf, vlim };
+}
+
+/**
+ * SAW velocity (m/s) under a continuous isotropic metal film of thickness h, kh = 2 pi h / lambda,
+ * film = isoFilm(...). The slowest root below the bulk limit (the Rayleigh-type mode).
+ */
+export function filmVelocity(ctx, film, kh, vlim = bulkLimit(ctx)) {
+  const f = { ...film, kh };
+  const N = 72;
+  const vs = new Float64Array(N), fs = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    vs[i] = vlim * (1 - 0.6 * Math.pow(1e-7 / 0.6, i / (N - 1)));
+    const r = evalAt(ctx, vs[i], false, f);
+    fs[i] = r.ok ? r.dFilm : NaN;
+  }
+  return rootFromGrid(vs, fs, finite((v) => { const r = evalAt(ctx, v, false, f); return r.ok ? r.dFilm : NaN; }));
 }
 
 /** Free-surface velocity near a known value (warm start), for the power-flow angle. */

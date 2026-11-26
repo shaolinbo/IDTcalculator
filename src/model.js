@@ -4,13 +4,13 @@
 // Signal path at each port:  probe (Z0) -> tuning L -> pad (shunt Cpad)
 //   -> lead (series R + jwL) -> finger resistance -> IDT.
 // A feedthrough capacitance Cft connects the two pad nodes directly.
-import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js?v=6fac78a005';
-import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js?v=6fac78a005';
-import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js?v=6fac78a005';
-import { orientation, csDatta } from './materials.js?v=6fac78a005';
-import { padCapacitance } from './pads.js?v=6fac78a005';
-import { solveSubstrate } from './saw/substrate.js?v=6fac78a005';
-import { DEFAULT_SET } from './saw/constants.js?v=6fac78a005';
+import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js?v=d11e120981';
+import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js?v=d11e120981';
+import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js?v=d11e120981';
+import { orientation, csDatta } from './materials.js?v=d11e120981';
+import { padCapacitance } from './pads.js?v=d11e120981';
+import { solveSubstrate } from './saw/substrate.js?v=d11e120981';
+import { DEFAULT_SET } from './saw/constants.js?v=d11e120981';
 
 /**
  * Fill in substrate and pad values.

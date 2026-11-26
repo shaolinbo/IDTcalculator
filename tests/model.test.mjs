@@ -149,3 +149,16 @@ test('velocity shift under the IDTs sets the pitch and the transit time inside t
   const d0 = derive({ ...p, dvIdt: 0 });
   close(d0.tau, d0.Lcc / 4000, 1e-15, 'no shift: tau = Lcc / v');
 });
+
+test('electrode loading: self-consistent h/lambda and v_IDT = v0 + eta (v_film - v0)', async () => {
+  const { electrodeLoading, solveSubstrate, filmSAW } = await import('../src/saw/substrate.js');
+  const { METALS } = await import('../src/materials.js');
+  const o = orientation('128Y'), set = 'andrushchak2009';
+  const v0 = solveSubstrate(o, { set }).v0;
+  const L = electrodeLoading(o, { set, metal: METALS.Au, h: 100e-9, f0: 220e6, v0 });
+  close(L.hOverLambda, (100e-9 * 220e6) / L.vIdt, 1e-12, 'h/lambda with lambda = v_IDT / f0');
+  close(L.vIdt, v0 + 0.5 * (filmSAW(o, set, METALS.Au, L.hOverLambda) - v0), 1e-3, 'v_IDT');
+  assert.ok(L.dv < 0 && L.vFilm < L.vIdt, 'slower under the IDTs, slowest under a full film');
+  const L0 = electrodeLoading(o, { set, metal: METALS.Al, h: 0, f0: 220e6, v0 });
+  close(L0.vIdt, v0 + 0.5 * (solveSubstrate(o, { set }).vm - v0), 1e-3, 'h = 0: halfway between v0 and vm');
+});
