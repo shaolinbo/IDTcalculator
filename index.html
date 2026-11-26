@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAW IDT Calculator</title>
+  <meta name="description" content="Impedance, S-parameters and insertion loss of SAW interdigital transducers on lithium niobate, in the browser.">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <script type="module" src="src/ui.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>SAW IDT calculator</h1>
+      <p>Two-IDT delay line on LiNbO₃ between 50 Ω probe ports · impulse model · v0.1 (Phase 1)</p>
+    </div>
+    <nav class="actions" aria-label="Export and share">
+      <button type="button" id="btn-s2p">Download .s2p</button>
+      <button type="button" id="btn-csv">Download CSV</button>
+      <button type="button" id="btn-link">Copy link</button>
+      <button type="button" id="btn-reset" class="ghost">Reset</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" aria-label="Inputs">
+      <form id="form" autocomplete="off" novalidate></form>
+    </aside>
+
+    <section class="results" aria-live="polite">
+      <div id="msg" class="msg" hidden></div>
+      <div id="cards" class="cards"></div>
+
+      <div class="grid">
+        <figure class="chart">
+          <figcaption><b>S-parameters</b> · magnitude in dB at the probe tips; dotted line marks f₀.</figcaption>
+          <div id="plot-s" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>Impedance, port 1</b> · solid: at the probe tip (pads, leads, IDT 2 loading included); dashed: bare IDT 1.</figcaption>
+          <div id="plot-z" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>IDT 1 admittance</b> · radiation conductance Ga, acoustic susceptance Ba and capacitive susceptance ωCt.</figcaption>
+          <div id="plot-y" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>Smith chart</b> · S11 and S22 normalized to Z₀; dots mark f₀.</figcaption>
+          <div id="plot-smith" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>Group delay of S21</b> · in µs.</figcaption>
+          <div id="plot-gd" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>Details</b> · derived quantities for the current inputs.</figcaption>
+          <table id="details" class="details"></table>
+        </figure>
+      </div>
+
+      <h2 class="section">Finger-pair sweep</h2>
+      <p class="hint">Both IDTs set to the same Np, single acoustic transit, no tuning. Two apertures: the current W, and the W that gives |Z| = Z₀ for each Np (lowest loss without tuning). Dotted line: current Np; dashed line: Np<sub>opt</sub> = √(π/4K²).</p>
+      <div class="grid">
+        <figure class="chart">
+          <figcaption><b>Insertion loss at f₀ vs Np</b> · dB.</figcaption>
+          <div id="plot-np-il" class="plot"></div>
+        </figure>
+        <figure class="chart">
+          <figcaption><b>3-dB bandwidth vs Np</b> · MHz.</figcaption>
+          <div id="plot-np-bw" class="plot"></div>
+        </figure>
+      </div>
+
+      <section class="notes">
+        <h2 class="section">Model and limits</h2>
+        <ul>
+          <li><b>IDT:</b> impulse (crossed-field) model, uniform single-electrode IDT, metallization ratio 0.5. Ga = 8K²CsWf₀Np²(sin x/x)², Ba its Hilbert transform, Ct = NpCsW. No electrode reflections, mass loading, diffraction or bulk-wave loss.</li>
+          <li><b>Delay line:</b> two IDTs with the same aperture and period; acoustic transfer √(Ga₁Ga₂)·sinc·sinc·e<sup>−jωτ</sup>. With regeneration on, the exact Y→S conversion includes the triple-transit echo.</li>
+          <li><b>Ports:</b> probe (Z₀) → optional tuning L → pad (shunt Cpad) → lead (R, L) → finger resistance (2/3)ρW/(a h Np) → IDT. Feedthrough Cft couples the two pad nodes.</li>
+          <li><b>Substrate:</b> v and K² for Y-Z and 128°Y-X from Datta (1986), as tabulated by Kawada et al., arXiv:2504.12752 (2025). Cs is an estimate, Cs = ε₀ + √(ε′₁₁ε′₃₃ − ε′₁₃²) with clamped LiNbO₃ permittivity (Kushibiki et al. 1999). X-, Y- and Z-cut at a free angle get Cs only; enter v and K² yourself until the partial-wave solver (Phase 2).</li>
+          <li><b>Pads:</b> Cpad from a coplanar-waveguide estimate; replace it with a value from an open-pad dummy if you have one.</li>
+        </ul>
+      </section>
+    </section>
+  </main>
+
+  <footer class="foot">
+    Phase 1 of a planned tool: next come the partial-wave substrate solver (any cut and direction), the COM model and the optimizer.
+  </footer>
+</body>
+</html>

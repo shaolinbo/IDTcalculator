@@ -1,0 +1,10 @@
+{
+  "name": "saw-idt-calculator",
+  "version": "0.1.0",
+  "description": "Browser calculator for SAW interdigital transducers on LiNbO3: impedance, S-parameters, delay-line insertion loss.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
