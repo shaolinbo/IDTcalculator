@@ -1,7 +1,18 @@
 // Web Worker: runs angle sweeps off the main thread.
-import { sweep, gratingParams } from './substrate.js?v=f5cac54763';
+import { stackSAW, stackDispersion } from './stack.js?v=e80927370c';
+import { sweep, gratingParams } from './substrate.js?v=e80927370c';
 
 self.onmessage = (ev) => {
+  if (ev.data.kind === 'stack' || ev.data.kind === 'disp') {
+    const { kind, key, orient, prm } = ev.data;
+    try {
+      if (kind === 'stack') self.postMessage({ kind, key, result: stackSAW(orient, prm) });
+      else self.postMessage({ kind, key, rows: stackDispersion(orient, { ...prm, onProgress: (f) => self.postMessage({ kind, key, progress: f }) }) });
+    } catch (err) {
+      self.postMessage({ kind, key, error: String(err && err.message || err) });
+    }
+    return;
+  }
   if (ev.data.kind === 'grating') {
     const { key, orient, set, metal, h, f0, eta } = ev.data;
     try {

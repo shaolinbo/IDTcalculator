@@ -67,3 +67,32 @@ export function voigt3m(m) {
   ];
   return { C, E, EPS };
 }
+
+// ---------------------------------------------------------------------------
+// Layer and substrate materials for thin-film stacks (stack.js), in the same record format
+// (c in N/m^2, relative permittivity at constant strain; no piezoelectricity). Crystal axes:
+// Si cubic X = [100], Y = [010], Z = [001]; sapphire x3 = c axis, x1 = a (2-fold) axis.
+
+const isotropic = ({ rho, E, nu, eps }) => {
+  const mu = E / (2 * (1 + nu)), lam = (E * nu) / ((1 + nu) * (1 - 2 * nu));
+  return { rho, c11: lam + 2 * mu, c12: lam, c13: lam, c14: 0, c33: lam + 2 * mu, c44: mu, c66: mu,
+    e15: 0, e22: 0, e31: 0, e33: 0, eps11: eps, eps33: eps };
+};
+
+export const LAYER_MATERIALS = {
+  // J. J. Hall, Phys. Rev. 161, 756 (1967), as given in A. George, EMIS Datareviews 20 (1997);
+  // density: I. Henins, J. Res. NBS 68A, 529 (1964); eps: Dunlap & Watters (1953), via
+  // Young & Frederikse, J. Phys. Chem. Ref. Data 2, 313 (1973). High-resistivity Si assumed.
+  Si: { name: 'Si', rho: 2329.0, c11: 165.64e9, c12: 63.94e9, c13: 63.94e9, c14: 0, c33: 165.64e9,
+    c44: 79.51e9, c66: 79.51e9, e15: 0, e22: 0, e31: 0, e33: 0, eps11: 11.7, eps33: 11.7 },
+  // J. B. Wachtman et al., J. Res. NBS 64A, 213 (1960), Table 7, with their axes (x1 along +a);
+  // later work reports c14 = +22 to +23 GPa in another axis convention (equivalent on c-plane
+  // to turning the substrate by 180°). c66 = (c11 - c12)/2. Permittivity: Fontanella, Andeen,
+  // Schuele, J. Appl. Phys. 45, 2852 (1974), 1 kHz, 300 K.
+  sapphire: { name: 'sapphire', rho: 3986.0, c11: 496.8e9, c12: 163.6e9, c13: 110.9e9, c14: -23.5e9,
+    c33: 498.1e9, c44: 147.4e9, c66: 166.6e9, e15: 0, e22: 0, e31: 0, e33: 0, eps11: 9.395, eps33: 11.589 },
+  // Fused silica, Corning HPFS 7980 data sheet (E = 72.7 GPa, nu = 0.16, 2.201 g/cm^3);
+  // eps: Jungwirth et al., Appl. Phys. Lett. 124 (2024). Thermal oxide films can differ
+  // (e.g. 2.284 g/cm^3 in Beghi et al., Rev. Sci. Instrum. 82, 053107, 2011).
+  SiO2: { name: 'SiO2', ...isotropic({ rho: 2201, E: 72.7e9, nu: 0.16, eps: 3.87 }) },
+};

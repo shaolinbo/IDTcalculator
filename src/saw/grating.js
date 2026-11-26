@@ -15,8 +15,8 @@
 // electrode |r_s| = pi (f2 - f1)/(f1 + f2) (COM: edges at f0 (1 ± |r_s|/pi)). The edge that
 // moves when the grating is opened couples to the IDT; with the COM sign convention of
 // com.js, r_s < 0 when that is the lower edge.
-import { EPS0, voigt3m } from './constants.js?v=f5cac54763';
-import { fullTensors, rotateTensor } from './tensor.js?v=f5cac54763';
+import { EPS0, voigt3m } from './constants.js?v=e80927370c';
+import { fullTensors, rotateTensor } from './tensor.js?v=e80927370c';
 
 const C0 = 1e11;
 const SE = Math.sqrt(C0 * EPS0);

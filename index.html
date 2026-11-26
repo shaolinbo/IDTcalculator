@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAW IDT Calculator</title>
   <meta name="description" content="Impedance, S-parameters and insertion loss of SAW interdigital transducers on lithium niobate, in the browser.">
-  <link rel="stylesheet" href="css/style.css?v=f5cac54763">
+  <link rel="stylesheet" href="css/style.css?v=e80927370c">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-  <script type="module" src="src/ui.js?v=f5cac54763"></script>
+  <script type="module" src="src/ui.js?v=e80927370c"></script>
 </head>
 <body>
   <header class="top">
@@ -101,6 +101,21 @@
         </div>
       </section>
 
+      <section id="dispersion" hidden>
+        <h2 class="section">Thin film: guided modes</h2>
+        <p class="hint"><span id="disp-hint">Guided modes versus LN thickness.</span> <span id="disp-status" class="status"></span></p>
+        <div class="grid">
+          <figure class="chart">
+            <figcaption><b>Mode velocities</b> · open top surface, versus LN thickness h/λ (log scale); dotted line: current design.</figcaption>
+            <div id="plot-disp-v" class="plot"></div>
+          </figure>
+          <figure class="chart">
+            <figcaption><b>Coupling K²</b> = 2(v₀ − vₘ)/v₀ of the slowest mode of each type, versus h/λ.</figcaption>
+            <div id="plot-disp-k" class="plot"></div>
+          </figure>
+        </div>
+      </section>
+
       <section id="loading" hidden>
         <h2 class="section">Electrode mass loading</h2>
         <p class="hint">SAW velocity under a continuous film of the selected metal (metallized, with the film's mass and stiffness) and the estimate under the IDTs, v₀ + 0.5 (v_film − v₀), versus metal thickness h/λ. Dotted line: current design.</p>
@@ -133,6 +148,7 @@
           <li><b>Electrode mass loading:</b> the SAW is slower under the IDTs than on the free surface (shorting and the metal's mass). With "Include electrode mass" on, the solver gives the exact velocity under a continuous film of the chosen metal (shorted surface, film mass and stiffness), and the velocity under the IDTs is estimated as v₀ + 0.5 (v_film − v₀) (metallization ratio 0.5; first order, no grating reflections). Otherwise enter Δv/v₀ (for example from FEM or a measured resonance). The IDT period, electrode pitch and transit time inside the IDTs use v₀(1 + Δv/v₀); the gap uses v₀.</li>
           <li><b>Ports:</b> probe (Z₀) → optional tuning L → pad (shunt Cpad) → lead (R, L) → finger resistance (2/3)ρW/(a h Np) → IDT. Feedthrough Cft couples the two pad nodes.</li>
           <li><b>Substrate:</b> a partial-wave solver for the piezoelectric half-space gives the free and metallized SAW velocities v₀ and vₘ, K² = 2(v₀ − vₘ)/v₀, the effective permittivity ε∞ (used as Cs) and the power-flow angle, for any cut and direction. LiNbO₃ constants: Andrushchak et al. (2009, sample smp-1) with ρ = 4700 kg/m³ by default, or Kushibiki et al. (1999). Rayleigh-type waves only: orientations with leaky or pseudo-SAW (e.g. 41° and 64° Y-cuts, X propagation) are not modelled. Published values for Y-Z and 128°Y at φ = 0 (Datta 1986) are shown for comparison. Propagation angle φ: on 128°Y and rotated Y-cuts, φ = 0 is the X direction, positive counter-clockwise about the outward surface normal.</li>
+          <li><b>Thin film:</b> with a structure other than bulk, a layered solver (Stroh matrices, surface-impedance recursion) gives the guided modes of LN on SiO₂/Si, LN on sapphire or a suspended LN membrane, and v₀, vₘ, K² and Cs of the chosen mode at this wavelength. Si is treated as a dielectric; no leaky modes; mass loading and the grating FEM are off for stacks.</li>
           <li><b>Pads:</b> Cpad from a coplanar-waveguide estimate; replace it with a value from an open-pad dummy if you have one.</li>
         </ul>
       </section>

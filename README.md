@@ -43,6 +43,7 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 | Zero-to-zero bandwidth | Between the first transmission nulls on each side of the passband, from the S21 trace (one-step resolution); compared with 2f₀/N, N the larger Np |
 | Electrode pitch | p = λ/2, λ = v_IDT/f₀ the wavelength under the IDTs; finger width λ/4 |
 | Electrode mass loading | With **Include electrode mass**: velocity under a continuous metal film and under the IDTs, and its chart against h/λ |
+| Thin film | Guided modes, v₀, vₘ, K² and Cs of LN on SiO₂/Si, LN on sapphire or a suspended LN membrane; dispersion charts |
 | IDT model | Impulse (no reflection) or coupling of modes (COM) with an entered reflection coefficient per electrode; COM adds the grating stopband to Details |
 | Z at probe, port 1 | Includes pads, leads, finger resistance and loading by IDT 2 |
 | Bare IDT 1 | 1/(Ga + jBa + jωCt) of IDT 1 alone |
@@ -122,6 +123,49 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 
 - Rayleigh-type waves only. Leaky and pseudo-SAW are not modelled: on 41° and 64° Y-X, for example, the strongly coupled wave is a leaky shear wave and the solver shows only the weak Rayleigh wave.
 - Orientations with no SAW below the slowest bulk-wave velocity are flagged.
+
+## Thin-film LiNbO₃ (Phase 5)
+
+**Structures.** Selected with **Structure**; the LN film takes the cut and direction above.
+
+| Structure | Layers (top to bottom) | Substrate orientation |
+|---|---|---|
+| LN / SiO₂ / Si (LNOI) | LN, SiO₂, Si half-space | Si(100); the SAW at the substrate angle from Si [110] |
+| LN on sapphire | LN, sapphire half-space | c-plane; the SAW at the substrate angle from the a-axis |
+| Suspended LN membrane | LN, free on both faces | – |
+
+The substrate angle is set at φ = 0; on cuts with a propagation angle φ, the SAW direction in the substrate turns with φ.
+
+**Method.**
+
+1. **Layers.** Each layer carries the state (u, φ, T₃ⱼ, D₃), continuous across interfaces; across a layer it propagates with exp(iN·kh), N the 8×8 Stroh matrix of the layer material (piezoelectric or dielectric).
+2. **Stability.** The surface impedance Z (traction and D₃ in terms of u and φ) is carried upward through sublayers with kh ≤ 0.4, which stays well conditioned for thick films.
+3. **Boundaries.** Below: the substrate's four decaying partial waves, or for a membrane a traction-free bottom face with vacuum below. At the top: traction-free, and open (vacuum above) or shorted.
+4. **Modes.** All guided modes below the substrate's slowest bulk wave (faster modes leak) are found from the boundary determinant. Each is classified by its surface displacement: shear-horizontal when u₂ dominates, otherwise Rayleigh-type; in a membrane also A (flexural) or S by the symmetry of u₃ on the two faces.
+5. **Device values.** **Guided mode** picks the slowest Rayleigh-type mode (A0 in a membrane), the slowest shear-horizontal mode (SH0), or S0 (membranes). v₀ is its open-surface velocity; vₘ the shorted velocity of the same branch (same family, at or just below v₀, mutually nearest), K² = 2(v₀ − vₘ)/v₀, and Cs = ε∞ε₀ from the top-surface effective permittivity at this wavelength. h/λ is solved together with λ = v₀/f₀.
+6. **Dispersion.** The page plots every guided mode and the K² of the slowest mode of each type against h_LN/λ from 1 % to 200 % (SiO₂ thickness scaled at the current ratio).
+
+**Materials** (room temperature; no piezoelectricity):
+
+| Material | Constants | Source |
+|---|---|---|
+| Si | c₁₁ = 165.64, c₁₂ = 63.94, c₄₄ = 79.51 GPa; ρ = 2329.0 kg/m³; εr = 11.7 | J. J. Hall, Phys. Rev. 161, 756 (1967), as given in EMIS Datareviews 20 (1997); density I. Henins, J. Res. NBS 68A, 529 (1964); εr Dunlap & Watters (1953) via Young & Frederikse, J. Phys. Chem. Ref. Data 2, 313 (1973) |
+| Sapphire | c₁₁ = 496.8, c₁₂ = 163.6, c₁₃ = 110.9, c₁₄ = −23.5, c₃₃ = 498.1, c₄₄ = 147.4 GPa; ρ = 3986 kg/m³; ε⊥ = 9.395, ε∥ = 11.589 | J. B. Wachtman et al., J. Res. NBS 64A, 213 (1960), with their axes; permittivity Fontanella et al., J. Appl. Phys. 45, 2852 (1974) |
+| SiO₂ | E = 72.7 GPa, ν = 0.16, ρ = 2201 kg/m³; εr = 3.87 | Corning HPFS 7980 fused silica; εr Jungwirth et al., Appl. Phys. Lett. 124 (2024) |
+
+- **Sapphire c₁₄:** later work reports +22 to +23 GPa in another axis convention. On c-plane sapphire that is equivalent to turning the substrate angle by 180°.
+- **Oxide:** thermal oxide films can be denser than fused silica (2284 kg/m³ in Beghi et al., Rev. Sci. Instrum. 82, 053107, 2011).
+- **Silicon:** treated as a dielectric (high-resistivity Si); a conductive substrate would act as a ground plane.
+
+**Examples** (f₀ = 1 GHz, default LN constants):
+
+| Design | Mode | v₀ (m/s) | K² (%) |
+|---|---|---|---|
+| 128°Y, 600 nm LN on 2 µm SiO₂ / Si | Rayleigh-type | 3193.6 | 4.33 |
+| 128°Y, 600 nm LN on sapphire | Rayleigh-type | 5103.5 | 0.99 |
+| X-cut, 30° from Z, 300 nm membrane | S0 | 6770.6 | 4.96 |
+
+**Limits.** Electrode mass loading and the periodic-grating FEM assume a bulk substrate and are off for thin-film stacks (COM with an entered r_s still works). No leaky modes; no electrode or substrate losses; layers are ideal and bonded.
 
 ## IDT and delay-line model
 
@@ -261,6 +305,15 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - For Al on 128°Y, r_s < 0 at h/λ = 2 % and r_s > 0 at 3 %.
 - The default and the doubled mesh agree within 0.05 % in r_s and 3 m/s in velocity.
 
+**Thin-film stacks.**
+
+- Every decaying partial-wave state of the bulk solver is an eigenvector of the Stroh matrix with eigenvalue β (to 1e-12).
+- An LN film on LN of the same cut gives the bulk v₀, vₘ and ε∞ at h/λ = 0.05, 0.3 and 1.
+- An isotropic layer on an isotropic substrate gives the analytic Love-wave velocity (kh = 0.5, 1, 2).
+- An isotropic plate gives SH0 = shear velocity, S0 → plate velocity and A0 → thin-plate flexural velocity at small thickness, and the SH1 cutoff.
+- A 3λ-thick LN film on sapphire, on SiO₂/Si and as a membrane recovers bulk 128°Y LN (within 0.2 % in velocity, 5 % in K²).
+- The stack velocity is self-consistent with h/λ = h f₀/v₀, K² > 0 and v₀ below the substrate's bulk limit.
+
 **Euler angles.**
 
 - The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
@@ -284,7 +337,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
 | 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness | Done. Metallization ratio as an input dropped (rarely needed); fixed at 0.5 |
 | 4 | Optimizer: Np, W and tuning L for lowest loss or widest band, with constraints | Skipped |
-| 5 (optional) | Thin-film LiNbO₃ on SiO₂/Si or sapphire | Planned |
+| 5 | Thin-film LiNbO₃: LN/SiO₂/Si, LN on sapphire, suspended membrane; Rayleigh-type and SH modes | In progress (branch `phase5-thin-film`): layered solver, mode selection, dispersion charts |
 
 ## References
 
@@ -311,6 +364,8 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/saw/tensor.js` | Tensors, rotations, Euler angles |
 | `src/saw/solver.js` | Partial-wave solver |
 | `src/saw/substrate.js` | Cached solver calls and angle sweeps |
+| `src/saw/layered.js` | Layered structures: Stroh matrices, impedance recursion, mode search |
+| `src/saw/stack.js` | Thin-film stacks (LNOI, LN on sapphire, membrane), chosen mode, dispersion |
 | `src/saw/grating.js` | Periodic-grating finite-element unit cell: stopband edges, r_s, velocity under the IDTs |
 | `src/saw/euler.js` | COMSOL and (λ, μ, θ) Euler angles of an orientation |
 | `src/view3d.js` | 3D chip and axes view (Plotly) |

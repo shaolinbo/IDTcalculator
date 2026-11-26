@@ -1,12 +1,13 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=f5cac54763';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=f5cac54763';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=f5cac54763';
-import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=f5cac54763';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=f5cac54763';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=f5cac54763';
-import { chipFigure } from './view3d.js?v=f5cac54763';
-import { dB, abs } from './complex.js?v=f5cac54763';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=e80927370c';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=e80927370c';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=e80927370c';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=e80927370c';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=e80927370c';
+import { STACKS, pickMode, pairShort } from './saw/stack.js?v=e80927370c';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=e80927370c';
+import { chipFigure } from './view3d.js?v=e80927370c';
+import { dB, abs } from './complex.js?v=e80927370c';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -21,13 +22,16 @@ const GROUPS = [
 
 const usesAngle = (key) => (s) => (PRESETS[s.cut]?.angles ?? []).includes(key);
 const usesSolver = (s) => s.cut !== 'custom' && s.mode === 'solver' && !!subState?.res?.ok;
-const gratingOn = (s) => s.idtModel === 'com' && s.comSrc === 'grating' && s.cut !== 'custom';
+const stackOn = (s) => s.cut !== 'custom' && !!s.stack && s.stack !== 'bulk';
+const gratingOn = (s) => s.idtModel === 'com' && s.comSrc === 'grating' && s.cut !== 'custom' && !stackOn(s);
 const usesGrating = (s) => gratingOn(s) && !!gratingState.result;
-const massOn = (s) => s.massLoad && s.cut !== 'custom' && !gratingOn(s);
+const massOn = (s) => s.massLoad && s.cut !== 'custom' && !gratingOn(s) && !stackOn(s);
 const needMetal = (s) => massOn(s) || gratingOn(s);
 const usesLoading = (s) => massOn(s) && !!loadState;
 let loadState = null; // electrodeLoading() result when "Include electrode mass" is on
 let gratingState = { key: null, result: null, status: '' }; // periodic-grating FEM (COM parameters)
+let stackState = { key: null, result: null, status: '' }; // thin-film guided mode
+let dispState = { key: null, rows: null, status: '' }; // thin-film dispersion
 const metalOf = (s) => ({ density: s.mDens * 1000, E: s.mE * 1e9, nu: s.mNu });
 
 const FIELDS = [
@@ -44,6 +48,16 @@ const FIELDS = [
   { g: 'sub', key: 'consts', label: 'LiNbO₃ constants', type: 'select', def: DEFAULT_SET,
     options: Object.entries(CONSTANT_SETS).map(([k, o]) => [k, o.label]),
     show: (s) => s.cut !== 'custom' },
+  { g: 'sub', key: 'stack', label: 'Structure', type: 'select', def: 'bulk',
+    options: Object.entries(STACKS).map(([k, o]) => [k, o.label]), show: (s) => s.cut !== 'custom' },
+  { g: 'sub', key: 'hLN', label: 'LN film thickness', unit: 'nm', si: 1e-9, def: 500, step: 10, min: 0, show: stackOn },
+  { g: 'sub', key: 'hOx', label: 'SiO₂ thickness', unit: 'nm', si: 1e-9, def: 2000, step: 50, min: 0, zeroOk: true,
+    show: (s) => stackOn(s) && s.stack === 'lnoi' },
+  { g: 'sub', key: 'subAngle', label: 'Substrate in-plane angle', unit: '°', si: 1, def: 0, step: 1,
+    show: (s) => stackOn(s) && s.stack !== 'membrane' },
+  { g: 'sub', key: 'waveMode', label: 'Guided mode', type: 'select', def: 'R',
+    options: [['R', 'Rayleigh-type (A0 in a membrane)'], ['SH', 'Shear-horizontal (SH0 in a membrane)'], ['S0', 'S0 (membrane only)']],
+    show: stackOn },
   { g: 'sub', key: 'v', label: 'SAW velocity v₀', unit: 'm/s', si: 1, def: 3963.0, step: 1, min: 0, disabled: usesSolver },
   { g: 'sub', key: 'K2', label: 'Coupling K²', unit: '%', si: 0.01, def: 5.368, step: 0.01, min: 0, zeroOk: true, disabled: usesSolver },
   { g: 'sub', key: 'Cs', label: 'Cs per finger pair', unit: 'pF/cm', si: 1e-10, def: 4.844, step: 0.001, min: 0, disabled: usesSolver },
@@ -246,8 +260,61 @@ function computeSubstrate(s) {
   const angles = anglesOf(s);
   const finiteAngles = Object.values(angles).every(Number.isFinite);
   if (!orient || !finiteAngles) return { orient: null, res: null };
+  if (stackOn(s)) {
+    requestStack(s, orient);
+    requestDispersion(s, orient);
+    return { orient, res: stackState.status === 'done' ? stackState.result : null, stack: true };
+  }
   return { orient, res: solveSubstrate(orient, { set: s.consts }) };
 }
+
+// Thin-film stacks: guided-mode values and the dispersion sweep run in background workers.
+const stackParams = (s) => ({
+  set: s.consts, stack: s.stack, hLN: s.hLN * 1e-9, hOx: s.hOx * 1e-9, f0: s.f0 * 1e6, mode: s.waveMode,
+  // The substrate angle is set at phi = 0; the SAW direction turns with phi on cuts that use it.
+  subAngle: (s.subAngle || 0) + ((PRESETS[s.cut]?.angles ?? []).includes('psi') ? s.psi : 0),
+});
+function runInWorker(slot, msg, onDone) {
+  if (slot.w && slot.busy) { slot.w.terminate(); slot.w = null; }
+  try {
+    if (!slot.w) {
+      slot.w = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
+      slot.w.onerror = () => { slot.w = null; slot.busy = false; onDone({ error: 'Background thread unavailable.' }); };
+    }
+    slot.w.onmessage = (ev) => { if (ev.data.progress != null && ev.data.rows == null && ev.data.result == null && !ev.data.error) { onDone({ progress: ev.data.progress }); return; } slot.busy = false; onDone(ev.data); };
+    slot.busy = true;
+    slot.w.postMessage(msg);
+  } catch { onDone({ error: 'Background thread unavailable.' }); }
+}
+const stackSlot = {}, dispSlot = {};
+function requestStack(s, orient) {
+  const prm = stackParams(s);
+  if (!(prm.hLN > 0 && prm.f0 > 0 && prm.hOx >= 0)) { stackState = { key: null, result: null, status: 'Needs a positive LN thickness and f₀.' }; return; }
+  const key = JSON.stringify([orient.A, prm]);
+  if (stackState.key === key) return;
+  stackState = { key, result: null, status: 'pending' };
+  runInWorker(stackSlot, { kind: 'stack', key, orient: { A: orient.A }, prm }, (d) => {
+    if (d.progress != null || d.key !== stackState.key) return;
+    stackState = d.error ? { key, result: null, status: `Thin-film calculation failed: ${d.error}` } : { key, result: { pfa: null, ...d.result }, status: 'done' };
+    update();
+  });
+}
+const DISP_HL = Array.from({ length: 26 }, (_, i) => 0.01 * Math.pow(200, i / 25)); // h/λ = 0.01 … 2
+function requestDispersion(s, orient) {
+  const prm = stackParams(s);
+  if (!(prm.hLN > 0)) return;
+  const dprm = { set: prm.set, stack: prm.stack, oxRatio: prm.stack === 'lnoi' ? prm.hOx / prm.hLN : 0, subAngle: prm.subAngle, hlList: DISP_HL };
+  const key = JSON.stringify([orient.A, dprm]);
+  if (dispState.key === key) return;
+  dispState = { key, rows: null, status: 'Computing the guided modes…' };
+  runInWorker(dispSlot, { kind: 'disp', key, orient: { A: orient.A }, prm: dprm }, (d) => {
+    if (d.key && d.key !== dispState.key) return;
+    if (d.progress != null) { dispState.status = `Computing the guided modes… ${Math.round(100 * d.progress)} %`; setText('disp-status', dispState.status); return; }
+    dispState = d.error ? { key, rows: null, status: `Failed: ${d.error}` } : { key, rows: d.rows, status: '' };
+    renderDispersion(readForm());
+  });
+}
+const setText = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
 
 // Periodic-grating FEM in its own worker (about 1–4 s); a newer request cancels an older one.
 let gratingWorker = null;
@@ -264,7 +331,7 @@ function requestGrating(s) {
   gratingState = { key, result: null, status: 'pending' };
   try {
     if (!gratingWorker) {
-      gratingWorker = new Worker(new URL('./saw/worker.js?v=f5cac54763', import.meta.url), { type: 'module' });
+      gratingWorker = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
       gratingWorker.onmessage = (ev) => {
         const d = ev.data;
         if (d.kind !== 'grating' || d.key !== gratingState.key) return;
@@ -288,6 +355,46 @@ function computeLoading(s) {
   try {
     return electrodeLoading(subState.orient, { set: s.consts, metal, h, f0, v0: subState.res.v0 });
   } catch { return null; }
+}
+
+// Thin-film dispersion: every guided mode (open top) and K² of the slowest mode of each type.
+function renderDispersion(s) {
+  const sec = document.getElementById('dispersion');
+  sec.hidden = !stackOn(s);
+  if (sec.hidden || !window.Plotly) return;
+  setText('disp-status', dispState.status);
+  const rows = dispState.rows;
+  if (!rows) return;
+  const t = theme();
+  const plate = s.stack === 'membrane';
+  const fams = plate ? [['A', 'A (flexural)', t.s1], ['S', 'S (symmetric)', t.s3], ['SH', 'SH', t.s2]] : [['R', 'Rayleigh-type (sagittal)', t.s1], ['SH', 'Shear-horizontal', t.s2]];
+  const key = (m) => (plate ? m.sym : m.type);
+  const pts = fams.map(([f, name, color]) => {
+    const x = [], y = [];
+    rows.forEach((r) => r.open.filter((m) => key(m) === f).forEach((m) => { x.push(r.hl * 100); y.push(m.v); }));
+    return { x, y, name, type: 'scatter', mode: 'markers', marker: { color, size: 6 } };
+  });
+  const cur = stackState.result?.hl;
+  const shapes = Number.isFinite(cur) ? [vline(cur * 100, t)] : [];
+  const lay = (yt) => {
+    const L = { ...baseLayout(t, 'LN thickness h/λ (%)', yt), shapes, hovermode: 'closest' };
+    L.xaxis.type = 'log';
+    return L;
+  };
+  react('plot-disp-v', pts, lay('Phase velocity (m/s)'));
+  const kTraces = fams.map(([f, name, color]) => {
+    const want = plate ? { A: 'R', S: 'S0', SH: 'SH' }[f] : f;
+    const x = [], y = [];
+    rows.forEach((r) => {
+      const o = pickMode(r.open, want, plate), sh = pairShort(o, r.short, plate, r.open);
+      if (o && sh) { x.push(r.hl * 100); y.push((200 * (o.v - sh.v)) / o.v); }
+    });
+    return line(x, y, `slowest ${name}`, color, { mode: 'lines+markers', marker: { size: 5, color } });
+  });
+  react('plot-disp-k', kTraces, lay('K² (%)'));
+  setText('disp-hint', plate
+    ? 'Guided modes of the suspended LN membrane versus film thickness (A: flexural, S: symmetric, SH: shear-horizontal).'
+    : `Guided modes of the ${STACKS[s.stack].label} stack versus LN thickness` + (s.stack === 'lnoi' ? ' (SiO₂ thickness scaled at the current ratio)' : '') + '. Modes faster than the substrate\'s slowest bulk wave leak and are not shown.');
 }
 
 // Velocity versus metal thickness for the current cut and metal (cached per cut and metal).
@@ -441,7 +548,11 @@ function render(s, p, res) {
   const L = (x) => (x == null ? '–' : `${nf(x * 1e9, 1)} nH`);
   const walk = sub?.ok && Number.isFinite(sub.pfa) ? S.Lcc * Math.tan(sub.pfa * Math.PI / 180) : null;
   const det = [
-    ['Substrate values', usesSolver(s) ? 'computed (solver)' : 'entered by hand'],
+    ['Substrate values', usesSolver(s) ? (stackOn(s) ? 'computed (thin-film solver)' : 'computed (solver)') : 'entered by hand'],
+    ...(stackOn(s) && sub?.ok ? [
+      ['Structure', STACKS[s.stack].label],
+      ['LN thickness h/λ' + (s.stack === 'lnoi' ? ' / SiO₂ h/λ' : ''), `${nf(sub.hl * 100, 3)} %` + (s.stack === 'lnoi' ? ` / ${nf((s.hOx * 1e-9 / sub.lambda) * 100, 3)} %` : '')],
+    ] : []),
     ['v₀ / K² / Cs used', `${nf(p.v, 1)} m/s / ${nf(p.K2 * 100, 3)} % / ${nf(p.Cs * 1e10, 3)} pF/cm`],
     ...(sub?.ok ? [
       ['Solver: vₘ / ε∞', `${nf(sub.vm, 1)} m/s / ${nf(sub.epsInf, 2)} ε₀`],
@@ -582,7 +693,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=f5cac54763', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;
@@ -599,7 +710,7 @@ function startWorker() {
 function updateSubstrateSweep(s) {
   const pr = PRESETS[s.cut];
   const section = document.getElementById('substrate-sweep');
-  if (!pr?.sweep || !Object.values(anglesOf(s)).every(Number.isFinite)) { section.hidden = true; return; }
+  if (stackOn(s) || !pr?.sweep || !Object.values(anglesOf(s)).every(Number.isFinite)) { section.hidden = true; return; }
   section.hidden = false;
   const fam = pr.sweep;
   // Only the Euler family has fixed angles besides the swept one.
@@ -699,6 +810,20 @@ function updateNotes(s) {
   let warn = false;
   if (s.cut === 'custom') {
     parts.push('Enter v, K² and Cs for your substrate.');
+  } else if (stackOn(s)) {
+    const st = stackState, q = st.result;
+    if (st.status === 'pending') parts.push('Computing the guided modes of the thin-film stack… The device model uses the previous values until it finishes.');
+    else if (st.status !== 'done') { parts.push(st.status); warn = true; }
+    else if (q && q.ok) {
+      const name = { R: q.sym === 'A' ? 'A0' : 'Rayleigh-type', SH: q.sym === 'SH' ? 'SH0' : 'shear-horizontal', S0: 'S0' }[s.waveMode];
+      parts.push(`Thin film (${STACKS[s.stack].label}, ${CONSTANT_SETS[s.consts]?.label ?? ''}): LN ${nf(s.hLN, 0)} nm = ${nf(q.hl * 100, 2)} % of λ. ${name} mode: v₀ = ${nf(q.v0, 1)} m/s, vₘ = ${nf(q.vm, 1)} m/s, K² = ${nf(q.K2 * 100, 3)} %, ε∞ = ${nf(q.epsInf, 2)} ε₀ (Cs = ${nf(q.Cs * 1e10, 3)} pF/cm).`
+        + (q.vlim ? ` Guided below the substrate's slowest bulk wave, ${nf(q.vlim, 0)} m/s.` : '')
+        + ` Modes found (open top): ${q.modesOpen.map((m) => `${m.sym ?? m.type} ${nf(m.v, 0)}`).join(', ')} m/s.`);
+      if (s.mode === 'manual') parts.push('Device model uses the values entered by hand.');
+    } else {
+      warn = true;
+      parts.push(`The ${s.waveMode === 'SH' ? 'shear-horizontal' : s.waveMode === 'S0' ? 'S0' : 'Rayleigh-type'} mode was not found for this stack${q?.vlim ? ` below the substrate's bulk limit (${nf(q.vlim, 0)} m/s); it may leak into the substrate` : ''}. The device model uses the values entered by hand.`);
+    }
   } else if (r && r.ok) {
     parts.push(`Solver (${CONSTANT_SETS[s.consts]?.label ?? ''}): v₀ = ${nf(r.v0, 1)} m/s, vₘ = ${nf(r.vm, 1)} m/s, ` +
       `K² = ${nf(r.K2 * 100, 3)} %, ε∞ = ${nf(r.epsInf, 2)} ε₀ (Cs = ${nf(r.Cs * 1e10, 3)} pF/cm), ` +
@@ -709,7 +834,7 @@ function updateNotes(s) {
     warn = true;
     parts.push(`No true SAW below the slowest bulk-wave limit (${nf(r.vlim, 1)} m/s) for this orientation; it carries leaky waves only, which the solver does not model. The device model uses the values entered by hand.`);
   }
-  if (pr?.pub && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
+  if (pr?.pub && !stackOn(s) && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
   notes.sub.textContent = parts.join(' ');
   notes.sub.className = warn ? 'note warn' : 'note';
   const gs = gratingState, gr = gs.result;
@@ -765,6 +890,7 @@ function update() {
   updateOrientation();
   updateSubstrateSweep(s);
   renderLoading(s);
+  renderDispersion(s);
   if (!ok) { showMsg('Some inputs are out of range (marked in red). Results show the last valid inputs.'); return; }
   let p, res;
   try {
