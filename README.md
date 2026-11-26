@@ -4,7 +4,7 @@ A browser tool for surface-acoustic-wave interdigital transducers (IDTs) on lith
 
 **Live: <https://shaolinbo.github.io/IDTcalculator/>**
 
-**Status: v0.2.** Partial-wave substrate solver (Rayleigh-type SAW only; no leaky or pseudo-SAW) and impulse IDT model. See [Roadmap](#roadmap).
+**Status: v0.3.** Partial-wave substrate solver (Rayleigh-type SAW only; no leaky or pseudo-SAW), impulse and coupling-of-modes IDT models, and a periodic-grating finite-element calculation of electrode reflection. See [Roadmap](#roadmap).
 
 Developed by Linbo Shao with Claude (Anthropic). Provided as is, without warranty; see [Disclaimer](#disclaimer).
 
@@ -282,8 +282,8 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | 1 | Impulse model, delay line, probe ports, pads, export | Done |
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
-| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | Mostly done: metal-film solver, COM P-matrix model, periodic-grating FEM for r_s and the velocity under the IDTs; next: metallization ratio as an input |
-| 4 | Optimizer: Np, W, metallization ratio and tuning L for lowest loss or widest band, with constraints | Planned |
+| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness | Done. Metallization ratio as an input dropped (rarely needed); fixed at 0.5 |
+| 4 | Optimizer: Np, W and tuning L for lowest loss or widest band, with constraints | Skipped |
 | 5 (optional) | Thin-film LiNbO₃ on SiO₂/Si or sapphire | Planned |
 
 ## References

@@ -1,12 +1,12 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=f4a790d683';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=f4a790d683';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=f4a790d683';
-import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=f4a790d683';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=f4a790d683';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=f4a790d683';
-import { chipFigure } from './view3d.js?v=f4a790d683';
-import { dB, abs } from './complex.js?v=f4a790d683';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=c29d6d9797';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=c29d6d9797';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=c29d6d9797';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=c29d6d9797';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=c29d6d9797';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=c29d6d9797';
+import { chipFigure } from './view3d.js?v=c29d6d9797';
+import { dB, abs } from './complex.js?v=c29d6d9797';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -264,7 +264,7 @@ function requestGrating(s) {
   gratingState = { key, result: null, status: 'pending' };
   try {
     if (!gratingWorker) {
-      gratingWorker = new Worker(new URL('./saw/worker.js?v=f4a790d683', import.meta.url), { type: 'module' });
+      gratingWorker = new Worker(new URL('./saw/worker.js?v=c29d6d9797', import.meta.url), { type: 'module' });
       gratingWorker.onmessage = (ev) => {
         const d = ev.data;
         if (d.kind !== 'grating' || d.key !== gratingState.key) return;
@@ -582,7 +582,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=f4a790d683', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=c29d6d9797', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;

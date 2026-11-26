@@ -13,8 +13,8 @@
 // length of an IDT with metallization ratio 0.5 (Cs = eps_inf).
 //
 // Units are scaled to keep all numbers O(1): c / 1e11, e / sqrt(1e11 eps0), eps / eps0.
-import { EPS0, voigt3m } from './constants.js?v=f4a790d683';
-import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=f4a790d683';
+import { EPS0, voigt3m } from './constants.js?v=c29d6d9797';
+import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=c29d6d9797';
 
 const C0 = 1e11;
 const SE = Math.sqrt(C0 * EPS0);
