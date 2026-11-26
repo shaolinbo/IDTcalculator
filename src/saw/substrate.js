@@ -1,7 +1,7 @@
 // Substrate values for a cut, from the partial-wave solver, and angle sweeps.
-import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=d11e120981';
-import { crystal, solveOrientation, prepare, bulkLimit, isoFilm, filmVelocity } from './solver.js?v=d11e120981';
-import { orientation } from '../materials.js?v=d11e120981';
+import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=a74496df0a';
+import { crystal, solveOrientation, prepare, bulkLimit, isoFilm, filmVelocity } from './solver.js?v=a74496df0a';
+import { orientation } from '../materials.js?v=a74496df0a';
 
 const crystals = new Map();
 const cache = new Map();

@@ -43,6 +43,7 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 | Zero-to-zero bandwidth | Between the first transmission nulls on each side of the passband, from the S21 trace (one-step resolution); compared with 2f₀/N, N the larger Np |
 | Electrode pitch | p = λ/2, λ = v_IDT/f₀ the wavelength under the IDTs; finger width λ/4 |
 | Electrode mass loading | With **Include electrode mass**: velocity under a continuous metal film and under the IDTs, and its chart against h/λ |
+| IDT model | Impulse (no reflection) or coupling of modes (COM) with an entered reflection coefficient per electrode; COM adds the grating stopband to Details |
 | Z at probe, port 1 | Includes pads, leads, finger resistance and loading by IDT 2 |
 | Bare IDT 1 | 1/(Ga + jBa + jωCt) of IDT 1 alone |
 | Group delay | −dφ/dω of S21; blank across transmission zeros (phase step > 90° between points) and where \|S21\| is more than 40 dB below its peak |
@@ -138,6 +139,21 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 - **Finger resistance:** (2/3)ρW/(a h Np), with finger width a = λ/4.
 - **Pad capacitance:** a coplanar-waveguide estimate, 2·Cs·K(k)/K(k′)·L with k = s/(s + 2g).
 
+**Coupling-of-modes (COM) model.** Selected with **IDT model**. With e^{jωt}, amplitudes R and S of the waves in +x and −x (acoustic power |R|²/2), voltage V and collected current I:
+
+- dR/dx = −jδR + jκS + jαV
+- dS/dx = −jκR + jδS − jαV
+- dI/dx = −2jαR − 2jαS + jωCV
+
+δ = ω/v_IDT − 2π/λ − jγ (γ from the propagation loss), κ = r_s/p with r_s the reflection coefficient of one electrode and p the electrode pitch, C = CsW/λ. Energy balance gives Ga₀ = 2α²L², so α² = 4K²CsWf₀/λ² reproduces the impulse model. α and κ are real: transduction and reflection centres lie at the electrode centres.
+
+- **P-matrix.** Over a uniform IDT the coefficients are constant, so the transfer from x = 0 to L = Np·λ is closed-form in s² = δ² − κ², with power series where |sL| is small. It gives [b₁, b₂, I] = P [a₁, a₂, V].
+- **Delay line.** The two P-matrices are joined across the gap at the free-surface velocity, including multiple reflections between the IDTs; the single-transit switch drops them. IDT 2's polarity is set so that with r_s = 0 the delay line equals the impulse model.
+- **Stopband.** A long grating reflects in f₀(1 ± |r_s|/π). With this sign convention the lower edge couples to the IDT when r_s < 0, the upper edge when r_s > 0.
+- **Where r_s comes from.** It is not computed. From the stopband edges f₋ < f₊ of a shorted grating with pitch p, for example a COMSOL periodic unit cell: |r_s| = π(f₊ − f₋)/(f₊ + f₋), and the velocity under the IDTs is p(f₊ + f₋) (enter it as Δv/v₀). The sign follows from which edge moves when the grating is opened.
+- **Cost.** About 23 ms for a 2001-point sweep and 0.2 s for the finger-pair sweep.
+- **Limits.** Metallization ratio fixed at 0.5; no end effects at the IDT edges; uniform IDTs only.
+
 **Velocity under the IDTs.** Under the IDTs the SAW is slower than on the free surface, from electrical shorting and the electrodes' mass. The IDT period λ = v₀(1 + Δv/v₀)/f₀, the electrode pitch λ/2 and the transit time inside the IDTs use the shifted velocity; the gap uses v₀. Δv/v₀ is either entered (for example from FEM or a measured resonance) or computed with **Include electrode mass** (see [Electrode mass loading](#electrode-mass-loading)). Details lists the wavelength under the IDTs, the free-surface wavelength v₀/f₀ and, for reference, the metallized-surface wavelength vₘ/f₀.
 
 ### Electrode mass loading
@@ -167,7 +183,7 @@ Cu is listed as 110–128 GPa; 128 GPa matches its listed shear modulus (48 GPa)
 
 **Limits.**
 
-- No electrode reflections or stopband. The velocity under the IDTs is an input, or the first-order mass-loading estimate.
+- Electrode reflection only in the COM model, with an entered r_s. The velocity under the IDTs is an input, or the first-order mass-loading estimate.
 - No diffraction. The beam walk-off from the power-flow angle is reported but not included in S21.
 - Both IDTs share one aperture and one period. The metallization ratio is fixed at 0.5.
 
@@ -206,6 +222,14 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - The boundary determinant vanishes at the analytic Love-wave velocity of an isotropic layer on an isotropic substrate, for kh = 0.5, 1 and 2 (tests the shear-horizontal film rows).
 - On 128°Y the velocity falls with thickness, faster for Au than for Al; the estimate under the IDTs is self-consistent in h/λ and lies halfway between v₀ and vₘ at h = 0.
 
+**COM model.**
+
+- With r_s = 0, the P-matrix admittance equals the impulse model (Ga, Ba, Ct) to 1e-12, and the delay line's S-parameters match it to 1e-12 for equal and unequal Np, with and without the triple-transit echo.
+- Lossless P-matrices are unitary and reciprocal (P₁₂ = P₂₁, P₃₁ = −2P₁₃, P₃₂ = −2P₂₃), and Re P₃₃ equals the radiated power |P₁₃|² + |P₂₃|².
+- The closed form agrees to 1e-10 with a numerical integration of the COM equations (matrix exponential), with loss and either sign of r_s.
+- A 300-period grating reflects more than 99 % inside f₀(1 ± |r_s|/π) and less than 50 % at twice that offset; the radiation conductance of a long IDT peaks at the lower edge for r_s < 0 and the upper edge for r_s > 0.
+- The COM delay line with r_s = −2 %, feedthrough, tuning and loss is passive and reciprocal at every frequency.
+
 **Euler angles.**
 
 - The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
@@ -227,7 +251,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | 1 | Impulse model, delay line, probe ports, pads, export | Done |
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
-| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | In progress: metal-film solver and mass-loading estimate done; coupling-of-modes model next |
+| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | In progress: metal-film solver, mass-loading estimate and COM P-matrix model (entered r_s) done; next: r_s and velocity from a periodic-grating calculation, metallization ratio |
 | 4 | Optimizer: Np, W, metallization ratio and tuning L for lowest loss or widest band, with constraints | Planned |
 | 5 (optional) | Thin-film LiNbO₃ on SiO₂/Si or sapphire | Planned |
 
@@ -249,6 +273,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/ui.js` | Form, URL state, plots (Plotly), export |
 | `src/model.js` | Delay-line model, sweeps, Touchstone and CSV export |
 | `src/impulse.js` | IDT impulse model, aperture formulas, finger resistance |
+| `src/com.js` | COM P-matrix of a uniform IDT; delay line from two P-matrices |
 | `src/network.js` | Two-port Y/Z/S helpers |
 | `src/materials.js` | Cut definitions, presets, clamped-ε Cs estimate |
 | `src/saw/constants.js` | LiNbO₃ material constants |

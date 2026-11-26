@@ -9,7 +9,7 @@
 //   Y     = Ga + j (Ba + 2 pi f Ct)
 //
 // Cs is per finger pair per unit aperture (F/m); W is the aperture (m).
-import { cx } from './complex.js?v=d11e120981';
+import { cx } from './complex.js?v=a74496df0a';
 
 export function idtAdmittance(f, { f0, Np, K2, Cs, W }) {
   const x = Np * Math.PI * (f - f0) / f0;

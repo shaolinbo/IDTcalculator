@@ -4,13 +4,14 @@
 // Signal path at each port:  probe (Z0) -> tuning L -> pad (shunt Cpad)
 //   -> lead (series R + jwL) -> finger resistance -> IDT.
 // A feedthrough capacitance Cft connects the two pad nodes directly.
-import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js?v=d11e120981';
-import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js?v=d11e120981';
-import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js?v=d11e120981';
-import { orientation, csDatta } from './materials.js?v=d11e120981';
-import { padCapacitance } from './pads.js?v=d11e120981';
-import { solveSubstrate } from './saw/substrate.js?v=d11e120981';
-import { DEFAULT_SET } from './saw/constants.js?v=d11e120981';
+import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js?v=a74496df0a';
+import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js?v=a74496df0a';
+import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js?v=a74496df0a';
+import { orientation, csDatta } from './materials.js?v=a74496df0a';
+import { padCapacitance } from './pads.js?v=a74496df0a';
+import { idtPMatrix, comParams, delayLineY } from './com.js?v=a74496df0a';
+import { solveSubstrate } from './saw/substrate.js?v=a74496df0a';
+import { DEFAULT_SET } from './saw/constants.js?v=a74496df0a';
 
 /**
  * Fill in substrate and pad values.
@@ -45,6 +46,8 @@ export const DEFAULTS = {
   v: 3996, K2: 0.056, Cs: null, // Cs null -> clamped-permittivity estimate for the cut
   f0: 220e6, Np1: 22, Np2: 22, W: 500e-6, gap: 1000e-6,
   dvIdt: 0, // fractional SAW velocity shift under the IDTs (mass loading, shorting); -0.01 = 1 % slower
+  idtModel: 'impulse', // 'impulse' or 'com' (coupling of modes, with electrode reflection)
+  rs: 0, // COM: reflection coefficient of one electrode (signed fraction)
   lossDbPerM: 0,
   Z0: 50,
   fingerR: true, metal: 'Al', rho: 2.65e-8, h: 100e-9,
@@ -79,20 +82,49 @@ const idt = (p, Np) => ({ f0: p.f0, Np, K2: p.K2, Cs: p.Cs, W: p.W });
  * Port Y-matrix before the tuning inductors, at frequency f.
  * acoustic = false drops the acoustic coupling between the IDTs (each IDT alone).
  */
-function yBeforeMatch(f, p, d, acoustic = true) {
+function yBeforeMatch(f, p, d, acoustic = true, multi = true) {
   const w = 2 * Math.PI * f;
-  const t1 = idtAdmittance(f, idt(p, p.Np1));
-  const t2 = idtAdmittance(f, idt(p, p.Np2));
-  // Acoustic transfer admittance (no electrode reflections in this model).
-  const y21 = acoustic
-    ? scale(expj(-w * d.tau), -Math.sqrt(t1.Ga0 * t2.Ga0) * t1.sinc * t2.sinc * d.amp)
-    : cx(0, 0);
-  let Y = [[t1.Y, y21], [y21, t2.Y]];
+  let t1, t2, Y;
+  if (p.idtModel === 'com') {
+    ({ t1, t2, Y } = comY(f, p, d, acoustic, multi));
+  } else {
+    t1 = idtAdmittance(f, idt(p, p.Np1));
+    t2 = idtAdmittance(f, idt(p, p.Np2));
+    // Acoustic transfer admittance (no electrode reflections in this model).
+    const y21 = acoustic
+      ? scale(expj(-w * d.tau), -Math.sqrt(t1.Ga0 * t2.Ga0) * t1.sinc * t2.sinc * d.amp)
+      : cx(0, 0);
+    Y = [[t1.Y, y21], [y21, t2.Y]];
+  }
   const zl = p.pads ? cx(p.Rlead, w * p.Llead) : cx(0, 0);
   Y = seriesZ(Y, add(cx(d.R1, 0), zl), add(cx(d.R2, 0), zl));
   if (p.pads) Y = shuntY(Y, cx(0, w * p.Cpad), cx(0, w * p.Cpad));
   if (p.Cft > 0) Y = bridgeY(Y, cx(0, w * p.Cft));
   return { Y, t1, t2 };
+}
+
+/**
+ * COM version of the bare delay line: P-matrices of both IDTs (velocity vIdt, reflection
+ * r_s per electrode, attenuation from the propagation loss) joined across the gap at v.
+ * multi = false keeps a single acoustic transit. With r_s = 0 this equals the impulse model.
+ */
+export function comY(f, p, d, acoustic = true, multi = true) {
+  const w = 2 * Math.PI * f;
+  const gamma = (p.lossDbPerM * Math.LN10) / 20; // amplitude attenuation, Np/m
+  const k0 = (2 * Math.PI) / d.lambda;
+  const delta = cx(w / d.vIdt - k0, -gamma);
+  const cp = comParams({ K2: p.K2, Cs: p.Cs, W: p.W, f0: p.f0, lambda: d.lambda, rs: p.rs ?? 0 });
+  const P = idtPMatrix({ delta, kappa: cp.kappa, alpha: cp.alpha, C: cp.C, omega: w, L: p.Np1 * d.lambda });
+  // IDT 2 polarity: chosen so that without reflections the transfer equals the impulse model's.
+  const pol = (p.Np1 + p.Np2) % 2 === 0 ? -1 : 1;
+  const Q = idtPMatrix({ delta, kappa: cp.kappa, alpha: pol * cp.alpha, C: cp.C, omega: w, L: p.Np2 * d.lambda });
+  const tOf = (M, Np) => {
+    const Ct = Np * p.Cs * p.W;
+    return { Y: M.P33, Ga: M.P33.re, Ba: M.P33.im - w * Ct, wCt: w * Ct, Ct, Ga0: M.P33.re };
+  };
+  const E = scale(expj((-w * p.gap) / p.v), Math.exp(-gamma * p.gap));
+  const Y = acoustic ? delayLineY(P, Q, E, multi) : [[P.P33, cx(0, 0)], [cx(0, 0), Q.P33]];
+  return { t1: tOf(P, p.Np1), t2: tOf(Q, p.Np2), Y, P, Q };
 }
 
 function applyMatch(Y, f, p) {
@@ -107,7 +139,7 @@ function applyMatch(Y, f, p) {
 
 /** Full response at one frequency. */
 export function evalAt(f, p, d = derive(p), regeneration = p.regeneration) {
-  const { Y: Y0, t1, t2 } = yBeforeMatch(f, p, d);
+  const { Y: Y0, t1, t2 } = yBeforeMatch(f, p, d, true, regeneration);
   const Y = applyMatch(Y0, f, p);
   const S = yToS(Y, p.Z0, regeneration);
   return {

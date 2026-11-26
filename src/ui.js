@@ -1,12 +1,12 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=d11e120981';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=d11e120981';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=d11e120981';
-import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=d11e120981';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=d11e120981';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=d11e120981';
-import { chipFigure } from './view3d.js?v=d11e120981';
-import { dB, abs } from './complex.js?v=d11e120981';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=a74496df0a';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=a74496df0a';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=a74496df0a';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=a74496df0a';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=a74496df0a';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=a74496df0a';
+import { chipFigure } from './view3d.js?v=a74496df0a';
+import { dB, abs } from './complex.js?v=a74496df0a';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -47,6 +47,10 @@ const FIELDS = [
   { g: 'idt', key: 'f0', label: 'Centre frequency f₀', unit: 'MHz', si: 1e6, def: 220, step: 1, min: 0 },
   { g: 'idt', key: 'Np1', label: 'Finger pairs, IDT 1', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'Np2', label: 'Finger pairs, IDT 2', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
+  { g: 'idt', key: 'idtModel', label: 'IDT model', type: 'select', def: 'impulse',
+    options: [['impulse', 'Impulse (no electrode reflection)'], ['com', 'Coupling of modes (COM)']] },
+  { g: 'idt', key: 'rs', label: 'Reflection per electrode r_s', unit: '%', si: 0.01, def: 0, step: 0.1, min: -20, max: 20, zeroOk: true,
+    show: (s) => s.idtModel === 'com' },
   { g: 'idt', key: 'W', label: 'Aperture W', unit: 'µm', si: 1e-6, def: 500, step: 1, min: 0 },
   { g: 'idt', key: 'dvIdt', label: 'Velocity shift under IDTs Δv/v₀', unit: '%', si: 0.01, def: 0, step: 0.1, min: -30, max: 30, zeroOk: true,
     disabled: (s) => usesLoading(s) },
@@ -141,6 +145,7 @@ function buildForm() {
       fs.append(row);
       if (f.key === 'Cs') fs.append(notes.sub = mk('p', 'note'));
       if (f.key === 'mNu') fs.append(notes.el = mk('p', 'note'));
+      if (f.key === 'rs') fs.append(notes.com = mk('p', 'note'));
       if (f.key === 'W') fs.append(buttons([
         ['btn-w-re', 'W for Re Z = Z₀'], ['btn-w-abs', 'W for |Z| = Z₀ (lowest loss)'],
       ]));
@@ -285,6 +290,7 @@ function toParams(s) {
   return resolve({
     cut: p.cut, ...anglesOf(s), substrate: 'manual', v, K2, Cs,
     f0: p.f0, Np1: p.Np1, Np2: p.Np2, W: p.W, gap: p.gap, lossDbPerM: p.loss, dvIdt: p.dvIdt,
+    idtModel: p.idtModel, rs: p.rs,
     Z0: p.Z0, fingerR: p.fingerR, rho: p.rho, h: p.h,
     pads: p.pads, padS: p.padS, padG: p.padG, padL: p.padL, Cpad: s.CpadAuto ? null : p.Cpad,
     Rlead: p.Rlead, Llead: p.Llead, Cft: p.Cft,
@@ -386,7 +392,7 @@ function render(s, p, res) {
     ['Z at probe, port 1 (f₀)', fmtZ(S.Zin1), `|Z| = ${nf(abs(S.Zin1), 1)} Ω · S11 = ${minus(nf(S.s11f0))} dB`,
       'Impedance seen from the probe tip into port 1 at f₀, as a calibrated VNA measures it: IDT 1 with its finger resistance, leads, pad capacitance and tuning inductor, and with IDT 2 present and port 2 terminated in Z₀. S11 is its reflection against Z₀.'],
     ['Bare IDT 1 (f₀)', fmtZ(S.Zidt1), `Ct = ${nf(S.Ct1 * 1e12, 3)} pF · Ga₀ = ${nf(S.Ga01 * 1e3, 3)} mS`,
-      'Impedance of IDT 1 by itself at f₀, 1/(Ga + jBa + jωCt): radiation conductance Ga, acoustic susceptance Ba and finger capacitance Ct only, without pads, leads, finger resistance or the second IDT. Ga₀ is Ga at f₀.'],
+      'Impedance of IDT 1 by itself at f₀, 1/(Ga + jBa + jωCt): radiation conductance Ga, acoustic susceptance Ba and finger capacitance Ct only, without pads, leads, finger resistance or the second IDT. With the COM model it includes the IDT’s own electrode reflections. Ga₀ is Ga at f₀.'],
   ];
   document.getElementById('cards').innerHTML = cards.map(([k, v, sb, tip]) =>
     `<div class="card" tabindex="0"><div class="k">${k} <span class="info" aria-hidden="true">ⓘ</span></div>` +
@@ -418,6 +424,13 @@ function render(s, p, res) {
     ['IDT lengths (1 / 2)', `${nf(p.Np1 * S.lambda * 1e6, 0)} / ${nf(p.Np2 * S.lambda * 1e6, 0)} µm`],
     ['Centre-to-centre distance', `${nf(S.Lcc * 1e3, 3)} mm`],
     ['Acoustic delay τ', `${nf(S.tau * 1e6, 4)} µs`],
+    ['IDT model', p.idtModel === 'com' ? 'coupling of modes (COM)' : 'impulse (no electrode reflection)'],
+    ...(p.idtModel === 'com' ? [
+      ['Reflection per electrode r_s / κ = r_s/p', `${minus(nf(p.rs * 100, 3))} % / ${minus(nf(p.rs / S.pitch, 1))} m⁻¹`],
+      ['Stopband of the grating, f₀(1 ± |r_s|/π)', `${nf(p.f0 * (1 - Math.abs(p.rs) / Math.PI) / 1e6, 3)} – ${nf(p.f0 * (1 + Math.abs(p.rs) / Math.PI) / 1e6, 3)} MHz`],
+      ['Stopband edge that couples to the IDT', p.rs < 0 ? 'lower' : p.rs > 0 ? 'upper' : '–'],
+      ['N·|r_s| (IDT 1 / IDT 2)', `${nf(2 * p.Np1 * Math.abs(p.rs), 3)} / ${nf(2 * p.Np2 * Math.abs(p.rs), 3)} (2 electrodes per period)`],
+    ] : []),
     ['Ct (IDT 1 / IDT 2)', `${nf(S.Ct1 * 1e12, 3)} / ${nf(S.Ct2 * 1e12, 3)} pF`],
     ['Finger resistance (1 / 2)', p.fingerR ? `${nf(S.R1, 3)} / ${nf(S.R2, 3)} Ω` : 'off'],
     ['Pad capacitance', p.pads ? `${nf(p.Cpad * 1e15, 1)} fF` : 'off'],
@@ -524,7 +537,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=d11e120981', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=a74496df0a', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;
@@ -654,6 +667,10 @@ function updateNotes(s) {
   if (pr?.pub && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
   notes.sub.textContent = parts.join(' ');
   notes.sub.className = warn ? 'note warn' : 'note';
+  notes.com.textContent = s.idtModel !== 'com' ? ''
+    : 'COM: each IDT is a P-matrix with electrode reflection r_s, transduction from K² and Cs, and the velocity under the IDTs; with r_s = 0 it equals the impulse model. '
+      + 'r_s is not computed here. From the stopband edges f₋ < f₊ of a shorted grating with pitch p (for example a COMSOL periodic unit cell): |r_s| = π(f₊ − f₋)/(f₊ + f₋), and the velocity under the IDTs is p(f₊ + f₋). '
+      + 'Sign: r_s < 0 when the lower edge is the one that couples to the IDT (it moves when the grating is opened), r_s > 0 for the upper edge. Metallization ratio fixed at 0.5.';
   notes.el.textContent = !massOn(s) ? ''
     : loadState ? `Metal film model: the solver gives the exact SAW velocity under a continuous film of this metal (shorted surface, film mass and stiffness). Under the IDTs (metallization ratio η = 0.5) the tool uses v₀ + η (v_film − v₀), a first-order estimate without grating reflections. Δv/v₀ = ${minus(nf(loadState.dv * 100, 3))} % at h/λ = ${nf(loadState.hOverLambda * 100, 3)} %. Bulk metal constants; thin films can be softer.`
       : 'Needs a computed substrate (solver) result for this cut and valid metal values.';
