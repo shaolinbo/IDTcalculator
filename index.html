@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAW IDT Calculator</title>
   <meta name="description" content="Impedance, S-parameters and insertion loss of SAW interdigital transducers on lithium niobate, in the browser.">
-  <link rel="stylesheet" href="css/style.css?v=57f4dfb508">
+  <link rel="stylesheet" href="css/style.css?v=521bac1594">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-  <script type="module" src="src/ui.js?v=57f4dfb508"></script>
+  <script type="module" src="src/ui.js?v=521bac1594"></script>
 </head>
 <body>
   <header class="top">
     <div class="title">
       <h1>SAW IDT calculator</h1>
-      <p>Two-IDT delay line on LiNbO₃ between 50 Ω probe ports · Rayleigh-type SAW only (no leaky or pseudo-SAW) · partial-wave substrate solver + impulse and COM models · v0.3</p>
+      <p>Two-IDT delay line on LiNbO₃ between 50 Ω probe ports · Rayleigh-type SAW on bulk LiNbO₃; guided Rayleigh-type, SH and Lamb (A0, S0) modes in thin films; no leaky or pseudo-SAW · partial-wave and layered solvers + impulse and COM models · v0.3</p>
       <p class="credit">Developed by Linbo Shao with Claude (Anthropic) · <a href="https://github.com/shaolinbo/IDTcalculator/blob/main/LICENSE">GPL-3.0 license</a> · provided as is, without warranty; see the <a href="#disclaimer">disclaimer</a>.</p>
     </div>
     <nav class="actions" aria-label="Export and share">
@@ -156,8 +156,8 @@
   </main>
 
   <footer class="foot">
-    <p>v0.3: impulse and coupling-of-modes IDT models, a partial-wave substrate solver and a periodic-grating finite-element calculation, for Rayleigh-type SAW on bulk LiNbO₃. Next (optional): thin-film LiNbO₃. <a href="https://github.com/shaolinbo/IDTcalculator">Source on GitHub</a>. Developed by Linbo Shao with Claude (Anthropic).</p>
-    <p id="disclaimer"><b>Disclaimer.</b> This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space; electrode mass loading only as a first-order estimate; electrode reflection from a two-dimensional grating unit cell or an entered coefficient; no diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.</p>
+    <p>v0.3: impulse and coupling-of-modes IDT models; a partial-wave substrate solver and a periodic-grating finite-element calculation for Rayleigh-type SAW on bulk LiNbO₃; a layered solver for guided modes in thin-film LiNbO₃. <a href="https://github.com/shaolinbo/IDTcalculator">Source on GitHub</a>. Developed by Linbo Shao with Claude (Anthropic).</p>
+    <p id="disclaimer"><b>Disclaimer.</b> This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space, or guided modes in ideal bonded thin-film layers; electrode mass loading only as a first-order estimate; electrode reflection from a two-dimensional grating unit cell or an entered coefficient; no diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.</p>
     <p><b>License.</b> GNU General Public License v3.0 (<a href="https://github.com/shaolinbo/IDTcalculator/blob/main/LICENSE">LICENSE</a>). You may use, modify and share the code under its terms; derived works must keep the same license.</p>
   </footer>
 </body>

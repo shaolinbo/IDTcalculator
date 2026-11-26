@@ -16,7 +16,7 @@
 // The equations have constant coefficients over a uniform IDT, so the transfer from
 // x = 0 to x = L is closed-form in s² = δ² - κ². With L = Np·λ, k0·L = 2π·Np and the
 // amplitudes at both ends are the wave amplitudes there.
-import { cx, add, sub, mul, div, scale } from './complex.js?v=57f4dfb508';
+import { cx, add, sub, mul, div, scale } from './complex.js?v=521bac1594';
 
 const J = cx(0, 1);
 const ccos = (z) => cx(Math.cos(z.re) * Math.cosh(z.im), -Math.sin(z.re) * Math.sinh(z.im));

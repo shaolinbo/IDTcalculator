@@ -4,9 +4,9 @@
 // Si(100) or c-plane sapphire, with the SAW direction at an in-plane angle from Si [110] or
 // from the sapphire a-axis (X); SiO2 is isotropic. Thicknesses are physical; h/lambda is
 // solved together with lambda = v / f0, since the guided velocity depends on h/lambda.
-import { CONSTANT_SETS, DEFAULT_SET, EPS0, LAYER_MATERIALS } from './constants.js?v=57f4dfb508';
-import { makeStructure, findModes, epsInf } from './layered.js?v=57f4dfb508';
-import { axesFromNP } from './tensor.js?v=57f4dfb508';
+import { CONSTANT_SETS, DEFAULT_SET, EPS0, LAYER_MATERIALS } from './constants.js?v=521bac1594';
+import { makeStructure, findModes, epsInf } from './layered.js?v=521bac1594';
+import { axesFromNP } from './tensor.js?v=521bac1594';
 
 export const STACKS = {
   bulk: { label: 'Bulk LiNbO₃' },

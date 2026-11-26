@@ -4,7 +4,7 @@ A browser tool for surface-acoustic-wave interdigital transducers (IDTs) on lith
 
 **Live: <https://shaolinbo.github.io/IDTcalculator/>**
 
-**Status: v0.3.** Partial-wave substrate solver (Rayleigh-type SAW only; no leaky or pseudo-SAW), impulse and coupling-of-modes IDT models, and a periodic-grating finite-element calculation of electrode reflection. See [Roadmap](#roadmap).
+**Status: v0.3.** Partial-wave solver for Rayleigh-type SAW on bulk LiNbO₃; layered solver for guided Rayleigh-type, SH and Lamb (A0, S0) modes in thin-film LiNbO₃ (on SiO₂/Si, on sapphire, membranes); no leaky or pseudo-SAW. Impulse and coupling-of-modes IDT models, and a periodic-grating finite-element calculation of electrode reflection. See [Roadmap](#roadmap).
 
 Developed by Linbo Shao with Claude (Anthropic). Provided as is, without warranty; see [Disclaimer](#disclaimer).
 
@@ -341,12 +341,17 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 | Source | Structure, mode | Quantity | Paper | This tool | Test |
 |---|---|---|---|---|---|
-| Lu et al. 2021 | 490 nm Z-cut membrane, along X, A1 | Centre frequency at Λ = 2.0 / 2.4 / 2.8 / 3.2 µm | 5.35 / 5.0 / 4.8 / 4.6 GHz, measured | 5.35 / 5.02 / 4.80 / 4.65 GHz | 2 % |
+| Lu et al. 2021, A1 | 490 nm Z-cut membrane, along X, A1 | Centre frequency at Λ = 2.0 / 2.4 / 2.8 / 3.2 µm | 5.35 / 5.0 / 4.8 / 4.6 GHz, measured | 5.35 / 5.02 / 4.80 / 4.65 GHz | 2 % |
 | | | Group velocity, groups D / A / E / C / B | 3472 / 3289 / 3528 / 2696 / 2304 m/s, measured | 3678 / 3300 / 3300 / 2968 / 2520 m/s | 12 % |
 | | | Shorted cutoff | 3.66 GHz, simulated (FEA) | 3.65 GHz (λ = 50 µm) | 1 % |
 | | | Open A1 at λ = 1.5 / 6 µm | 6.0 / 4.5 GHz, simulated (FEA, rounded) | 6.12 / 4.45 GHz | 3 % |
 | Manzaneque et al. 2019 | 800 nm X-cut membrane, −10° from Y, SH0, λ = 20 µm | Shorted velocity | 3550 m/s, simulated (FEM) | 3546 m/s | 1 % |
 | | | Open velocity | 4507 m/s, simulated (FEM) | 4373 m/s | – |
+| Lu et al. 2021, LNOS | 700 nm X-cut LN on sapphire, −10° from Y, SH, λ = 4.64 µm | Open / shorted velocity | 5569 / 5117 m/s, simulated (FEA) | 5653 / 5225 m/s | 3 % |
+| | | Open / shorted group velocity | 4864 / 4004 m/s, simulated (FEA) | 4849 / 4007 m/s | 3 % (open) |
+| | | K² = (f_open² − f_short²)/f_short² | 18.5 %, simulated (FEA) | 17.0 % | 2 points |
+| | SH delay lines, 130 nm Al | Centre frequency at Λ = 3.20 / 3.84 / 4.64 µm | 1.49 / 1.29 / 1.12 GHz, measured | 1.57 / 1.36 / 1.17 GHz | 7 %; ratios to 4.64 µm 2 % |
+| | | Group velocity at 1.12 GHz | 4747 m/s, measured | 4956 m/s | 6 % |
 | Lin et al. 2026 | 300 nm X-cut LN / 2 µm SiO₂ / Si, along Y, Rayleigh-type | Group velocity at 1.84 GHz | 3228 m/s, measured | 3221 m/s | 2 % |
 | | 128°Y-X bulk, Rayleigh | Group velocity | 3920 m/s, measured | 3963 m/s | 2 % |
 | | 300 nm X-cut membrane, along Y, A0 | Group velocity at 1.75 GHz | 3795 m/s, measured | 3640 m/s | – |
@@ -354,9 +359,10 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 - **Centre frequency:** the paper's condition for 50 % duty cells (its eq. 12): the mean of the open and shorted A1 wavenumbers is 2π/Λ. The 30 nm Al electrodes are not modelled.
 - **Group velocity:** dω/dk of the open-surface mode at the measured frequency. The measured values come from delay vs gap length.
-- **Lu et al., groups A and E:** same Λ; their measured group velocities differ by 7 %.
+- **Lu et al. (A1), groups A and E:** same Λ; their measured group velocities differ by 7 %.
 - **Manzaneque et al., angle:** φ = −10° here. Of −20°, −10°, 0° and +10°, it gives the largest K² (37.8 %), as the paper's choice for the largest k².
 - **Manzaneque et al., open velocity:** with D₃ = 0 on both faces (no field outside the plate), the model gives 4493 m/s.
+- **Lu et al., LNOS:** the paper does not state the sapphire in-plane orientation; the model uses a sapphire angle of 30°. The −10° sign follows the axes of its Fig. 1(a) and gives the larger K² here (17.0 % against 12.9 % at +10°). The bare film is 4 to 6 % above the measured centre frequencies; the paper's own simulation with the Al electrodes gives 1.44 / 1.26 / 1.08 GHz.
 - **Lin et al., LNOS:** the paper does not state the sapphire orientation. At sapphire angles 0° and 10° this SH mode is faster than sapphire's slowest bulk wave and leaks, so the tool gives no value there.
 - Bands and the LNOS, bulk and membrane velocities are read from the figures of Lin et al.; the LNOI value is in its text.
 
@@ -378,6 +384,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - T. Kawada, M. Kawaguchi, H. Matsumoto, M. Hayashi, "Model calculations of the strains associated with surface acoustic waves," arXiv:2504.12752 (2025).
 - J. Kushibiki, I. Takanaga, M. Arakawa, T. Sannomiya, "Accurate measurements of the acoustical physical constants of LiNbO₃ and LiTaO₃ single crystals," *IEEE Trans. Ultrason. Ferroelectr. Freq. Control* 46, 1315–1323 (1999).
 - Q. Lin, Y. Yu, A. Guedeja-Marrón, C. Scolnic, H. Deng, S. Fang, Y. Zhou, B. Li, J. C. Idrobo, M. Li, "Temperature-dependent acoustic loss at microwave frequencies in thin-film lithium niobate," arXiv:2602.02797v2 (2026).
+- R. Lu, Y. Yang, A. E. Hassanien, S. Gong, "Gigahertz low-loss and high power handling acoustic delay lines using thin-film lithium-niobate-on-sapphire," *IEEE Trans. Microw. Theory Techn.* 69, 3246–3254 (2021).
 - R. Lu, Y. Yang, S. Link, S. Gong, "Low-loss 5-GHz first-order antisymmetric mode acoustic delay lines in thin-film lithium niobate," *IEEE Trans. Microw. Theory Techn.* 69, 541–550 (2021).
 - T. Manzaneque, R. Lu, Y. Yang, S. Gong, "Low-loss and wideband acoustic delay lines," *IEEE Trans. Microw. Theory Techn.* 67, 1379–1391 (2019).
 - F. M. Mayor, W. Jiang, C. J. Sarabalis, T. P. McKenna, J. D. Witmer, A. H. Safavi-Naeini, "Gigahertz phononic integrated circuits on thin-film lithium niobate on sapphire," *Phys. Rev. Applied* 15, 014039 (2021).
@@ -413,7 +420,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 ## Disclaimer
 
-This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space; no electrode reflections, mass loading or diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.
+This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space, or guided modes in ideal bonded thin-film layers; electrode mass loading only as a first-order estimate; electrode reflection from a two-dimensional grating unit cell or an entered coefficient; no diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.
 
 ## License
 

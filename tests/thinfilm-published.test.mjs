@@ -5,10 +5,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { LN_ANDRUSHCHAK } from '../src/saw/constants.js';
+import { LN_ANDRUSHCHAK, LAYER_MATERIALS } from '../src/saw/constants.js';
 import { crystal, solveOrientation } from '../src/saw/solver.js';
 import { makeStructure, findModes } from '../src/saw/layered.js';
-import { stackSAW, pickMode, pairShort } from '../src/saw/stack.js';
+import { stackSAW, pickMode, pairShort, substrateAxes } from '../src/saw/stack.js';
 import { orientation } from '../src/materials.js';
 
 const load = (name) => JSON.parse(readFileSync(new URL(`./data/${name}`, import.meta.url), 'utf8'));
@@ -98,6 +98,60 @@ test('SH0 in an 800 nm X-cut membrane vs the FEM of Manzaneque et al. 2019 (simu
   // The paper chose -10 deg for the largest k2; of -20, -10, 0, +10 deg it is the largest here.
   const best = Object.entries(r).reduce((a, b) => (b[1].K2 > a[1].K2 ? b : a))[0];
   assert.equal(Number(best), -10, `largest K2 at ${best} deg`);
+});
+
+// ---------------------------------------------------------------------------
+// Lu et al. 2021 (TMTT 69, 3246): SH-SAW delay lines, 700 nm X-cut LN on c-plane sapphire.
+
+const lnos = (() => {
+  const A = orientation('Xcut', { psi: -10 }).A, sub = { material: LAYER_MATERIALS.sapphire, A: substrateAxes('sapphire', 30) };
+  /** SH mode, open and shorted, at wavelength lam (um); velocities in m/s. */
+  const at = (lam) => {
+    const S = makeStructure({ layers: [{ material: LN_ANDRUSHCHAK, A, hl: 0.7 / lam }], substrate: sub });
+    const mo = findModes(S, 'open', { vRef: 4500 }), o = pickMode(mo, 'SH', false);
+    const s = o && pairShort(o, findModes(S, 'short', { vRef: 4500 }), false, mo);
+    return o && s ? { open: o.v, short: s.v } : null;
+  };
+  const pts = Array.from({ length: 15 }, (_, i) => 2.8 + 0.2 * i).map((lam) => ({ lam, r: at(lam) })).filter((p) => p.r);
+  const c = (bc) => pts.map(({ lam, r }) => ({ k: (2 * Math.PI) / lam, f: r[bc] / lam / 1e3 })).sort((p, q) => p.f - q.f);
+  return { at, open: c('open'), short: c('short') };
+})();
+/** Frequency (GHz) where the mean of the open and shorted wavenumbers is 2 pi / Lambda (50 % metallized cells). */
+function centre(C, lam) {
+  const err = (ff) => 0.5 * (kAt(C.open, ff) + kAt(C.short, ff)) - (2 * Math.PI) / lam;
+  let lo = Math.max(C.open[0].f, C.short[0].f), hi = Math.min(C.open.at(-1).f, C.short.at(-1).f);
+  assert.ok(err(lo) < 0 && err(hi) > 0, `bracket at Lambda ${lam} um`);
+  for (let i = 0; i < 50; i++) { const m = 0.5 * (lo + hi); if (err(m) > 0) hi = m; else lo = m; }
+  return 0.5 * (lo + hi);
+}
+const vgAt = (c, f, df = 0.01) => ((2 * Math.PI * 2 * df) / (kAt(c, f + df) - kAt(c, f - df))) * 1e3;
+
+test('SH-SAW in 700 nm X-cut LN on sapphire vs the FEA of Lu et al. 2021 (simulated)', () => {
+  const d = load('lu2021_lnos_sh_adl.json').simulated;
+  const r = lnos.at(d.lambda_um);
+  assert.ok(r, 'SH mode and its shorted partner found (sapphire angle 30°)');
+  // Model 1.5 % (open) and 2.1 % (shorted) above the FEA.
+  assert.ok(rel(r.open, d.vp_open_m_s) < 0.03, `vp open ${r.open.toFixed(0)} vs ${d.vp_open_m_s}`);
+  assert.ok(rel(r.short, d.vp_short_m_s) < 0.03, `vp short ${r.short.toFixed(0)} vs ${d.vp_short_m_s}`);
+  const k2 = (100 * (r.open ** 2 - r.short ** 2)) / r.short ** 2; // paper eq. 3
+  assert.ok(Math.abs(k2 - d.K2_percent) < 2, `K2 ${k2.toFixed(1)} vs ${d.K2_percent} %`);
+  const vg = vgAt(lnos.open, r.open / d.lambda_um / 1e3);
+  assert.ok(rel(vg, d.vg_open_m_s) < 0.03, `vg open ${vg.toFixed(0)} vs ${d.vg_open_m_s}`);
+});
+
+test('SH-SAW delay lines of Lu et al. 2021 on sapphire: centre frequency and group velocity (measured)', () => {
+  const m = load('lu2021_lnos_sh_adl.json').measured;
+  const f = new Map(m.f_center.rows.map(([lam, fm]) => [lam, [centre(lnos, lam), fm]]));
+  for (const [lam, [fc, fm]] of f) {
+    // Bare film 4 to 6 % above the measured devices; their 130 nm Al electrodes are not modelled.
+    assert.ok(fc > fm && rel(fc, fm) < 0.07, `Lambda ${lam} um: ${fc.toFixed(3)} vs ${fm} GHz`);
+  }
+  // Frequency scaling with Lambda, relative to the 4.64 um design: within 1.3 %.
+  const [f0, m0] = f.get(4.64);
+  for (const [lam, [fc, fm]] of f) assert.ok(rel(fc / f0, fm / m0) < 0.02, `f(${lam}) / f(4.64): ${(fc / f0).toFixed(3)} vs ${(fm / m0).toFixed(3)}`);
+  // Group velocity of the open gap at 1.12 GHz: model 4.4 % above.
+  const vg = vgAt(lnos.open, m.vg_f_GHz);
+  assert.ok(rel(vg, m.vg_open_m_s) < 0.06, `vg ${vg.toFixed(0)} vs ${m.vg_open_m_s} m/s`);
 });
 
 // ---------------------------------------------------------------------------

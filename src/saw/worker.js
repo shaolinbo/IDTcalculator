@@ -1,6 +1,6 @@
 // Web Worker: runs angle sweeps off the main thread.
-import { stackSAW, stackDispersion } from './stack.js?v=57f4dfb508';
-import { sweep, gratingParams } from './substrate.js?v=57f4dfb508';
+import { stackSAW, stackDispersion } from './stack.js?v=521bac1594';
+import { sweep, gratingParams } from './substrate.js?v=521bac1594';
 
 self.onmessage = (ev) => {
   if (ev.data.kind === 'stack' || ev.data.kind === 'disp') {

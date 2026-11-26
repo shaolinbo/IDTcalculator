@@ -1,0 +1,24 @@
+{
+  "source": "R. Lu, Y. Yang, A. E. Hassanien, S. Gong, \"Gigahertz low-loss and high power handling acoustic delay lines using thin-film lithium-niobate-on-sapphire,\" IEEE Trans. Microw. Theory Techn. 69(7), 3246-3254 (2021)",
+  "doi": "10.1109/TMTT.2021.3074918",
+  "structure": "X-cut LiNbO3, 700 nm, on c-plane sapphire; SH-SAW. SPUDT cells of length Lambda: two Lambda/8 electrodes and a Lambda/4 reflector (50 % metallized), 130 nm Al (not modelled here; the gaps are bare LN). The sapphire in-plane orientation is not stated.",
+  "orientation": "Fig. 1(a): crystal Y at 10 deg from the propagation direction. X-cut phi = -10 here (phi from +Y toward +Z); this sign gives the larger coupling in this tool. Sapphire angle 30 deg is assumed here.",
+  "simulated": {
+    "kind": "simulated (COMSOL eigenmode FEA, Sec. II-B, at Lambda = 4.64 um; constants from the paper's refs. 41-42)",
+    "lambda_um": 4.64,
+    "vp_open_m_s": 5569,
+    "vp_short_m_s": 5117,
+    "vg_open_m_s": 4864,
+    "vg_short_m_s": 4004,
+    "K2_percent": 18.5,
+    "K2_definition": "(f_open^2 - f_short^2) / f_short^2 (paper eq. 3)",
+    "adl_f_center": { "kind": "simulated (frequency-domain FEA with the Al electrodes, Sec. II-C/D)", "columns": ["Lambda_um", "f_center_GHz"], "rows": [[3.2, 1.44], [3.84, 1.26], [4.64, 1.08]] }
+  },
+  "measured": {
+    "kind": "measured (Sec. IV): centre frequency of the passband; group velocity from the delay vs gap length (Group A, gaps 10-800 um, Lambda = 4.64 um, electrically open gap)",
+    "f_center": { "columns": ["Lambda_um", "f_center_GHz"], "rows": [[3.2, 1.49], [3.84, 1.29], [4.64, 1.12]] },
+    "vg_open_m_s": 4747,
+    "vg_f_GHz": 1.12,
+    "vp_spudt_m_s": 5130
+  }
+}
