@@ -18,6 +18,28 @@ export const LN_KUSHIBIKI = {
 };
 
 /**
+ * LiNbO3, sample smp-1 of Andrushchak, Mytsyk, Laba, Yurkevych, Solskii, Kityk, Sahraoui,
+ * J. Appl. Phys. 106, 073510 (2009), Table II; permittivity from Sec. II.
+ * Density: 4700 kg/m^3, adjusted to match measured devices (the paper measured 4628).
+ * The paper fixes the sign of c14 by the IRE 1949 axes, as for the Kushibiki set.
+ */
+export const LN_ANDRUSHCHAK = {
+  name: 'LiNbO₃, Andrushchak et al. (2009), smp-1, ρ = 4700 kg/m³',
+  rho: 4700,
+  c11: 199.2e9, c12: 54.7e9, c13: 70e9, c14: 7.9e9,
+  c33: 240e9, c44: 59.9e9, // c66 = (c11 - c12)/2 = 72.25e9 (tabulated as 72.2e9)
+  e15: 3.67, e22: 2.38, e31: 0.34, e33: 1.6,
+  eps11: 44, eps33: 27.9,
+};
+
+/** Constant sets offered on the page; the first is the default. */
+export const CONSTANT_SETS = {
+  andrushchak2009: { label: 'Andrushchak et al. 2009 (smp-1), ρ = 4700', m: LN_ANDRUSHCHAK },
+  kushibiki1999: { label: 'Kushibiki et al. 1999', m: LN_KUSHIBIKI },
+};
+export const DEFAULT_SET = 'andrushchak2009';
+
+/**
  * Voigt matrices for class 3m: C (6x6, N/m^2), E (3x6, C/m^2), EPS (3x3, F/m).
  * Trigonal symmetry requires c66 = (c11 - c12)/2; that value is used unless
  * c66 is given explicitly (only for test materials).

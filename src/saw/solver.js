@@ -407,25 +407,23 @@ function goldenMin(f, a, b, relTol = 1e-12) {
   return f1 < f2 ? { x: x1, f: f1 } : { x: x2, f: f2 };
 }
 
-/** Root of a boundary determinant from a scanned grid: refine the lowest local minima. */
+/**
+ * Slowest root of a boundary determinant from a grid scanned in increasing v: refine the
+ * local minima in order of velocity and return the first that is a true zero. Some
+ * orientations have a second surface wave just below the bulk limit (for example a
+ * shear-horizontal wave bound only by metallization); the Rayleigh-type wave is the slowest.
+ */
 function rootFromGrid(vs, fs, f) {
   const n = vs.length;
-  const mins = [];
+  const scale = [...fs].filter(Number.isFinite).sort((a, b) => a - b)[Math.floor(n / 2)];
   for (let i = 0; i < n; i++) {
     if (!Number.isFinite(fs[i])) continue;
     const l = i > 0 ? fs[i - 1] : Infinity, r = i < n - 1 ? fs[i + 1] : Infinity;
-    if (fs[i] <= l && fs[i] <= r) mins.push(i);
+    if (!(fs[i] <= l && fs[i] <= r)) continue;
+    const m = goldenMin(f, vs[Math.max(0, i - 1)], vs[Math.min(n - 1, i + 1)]);
+    if (m.f < 1e-6 * scale) return m.x;
   }
-  mins.sort((a, b) => fs[a] - fs[b]);
-  const scale = [...fs].filter(Number.isFinite).sort((a, b) => a - b)[Math.floor(n / 2)];
-  let best = null;
-  for (const i of mins.slice(0, 3)) {
-    const a = vs[Math.max(0, i - 1)], b = vs[Math.min(n - 1, i + 1)];
-    const r = goldenMin(f, a, b);
-    if (!best || r.f < best.f) best = r;
-  }
-  if (!best || !(best.f < 1e-6 * scale)) return null;
-  return best.x;
+  return null;
 }
 
 const finite = (f) => (v) => { const r = f(v); return Number.isFinite(r) ? r : Infinity; };

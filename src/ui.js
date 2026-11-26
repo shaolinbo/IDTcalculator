@@ -3,6 +3,7 @@ import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js';
 import { PRESETS, METALS, orientation, csDatta } from './materials.js';
 import { apertureForReZ, apertureForAbsZ } from './impulse.js';
 import { solveSubstrate } from './saw/substrate.js';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js';
 import { dB, abs } from './complex.js';
 
 // ---------------------------------------------------------------------------
@@ -30,9 +31,12 @@ const FIELDS = [
   { g: 'sub', key: 'mode', label: 'Substrate values', type: 'select', def: 'solver',
     options: [['solver', 'Computed (partial-wave solver)'], ['manual', 'Entered by hand']],
     show: (s) => s.cut !== 'custom' },
-  { g: 'sub', key: 'v', label: 'SAW velocity v₀', unit: 'm/s', si: 1, def: 3978.4, step: 1, min: 0, disabled: usesSolver },
-  { g: 'sub', key: 'K2', label: 'Coupling K²', unit: '%', si: 0.01, def: 5.411, step: 0.01, min: 0, zeroOk: true, disabled: usesSolver },
-  { g: 'sub', key: 'Cs', label: 'Cs per finger pair', unit: 'pF/cm', si: 1e-10, def: 4.894, step: 0.001, min: 0, disabled: usesSolver },
+  { g: 'sub', key: 'consts', label: 'LiNbO₃ constants', type: 'select', def: DEFAULT_SET,
+    options: Object.entries(CONSTANT_SETS).map(([k, o]) => [k, o.label]),
+    show: (s) => s.cut !== 'custom' },
+  { g: 'sub', key: 'v', label: 'SAW velocity v₀', unit: 'm/s', si: 1, def: 3963.0, step: 1, min: 0, disabled: usesSolver },
+  { g: 'sub', key: 'K2', label: 'Coupling K²', unit: '%', si: 0.01, def: 5.368, step: 0.01, min: 0, zeroOk: true, disabled: usesSolver },
+  { g: 'sub', key: 'Cs', label: 'Cs per finger pair', unit: 'pF/cm', si: 1e-10, def: 4.844, step: 0.001, min: 0, disabled: usesSolver },
 
   { g: 'idt', key: 'f0', label: 'Centre frequency f₀', unit: 'MHz', si: 1e6, def: 220, step: 1, min: 0 },
   { g: 'idt', key: 'Np1', label: 'Finger pairs, IDT 1', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
@@ -215,7 +219,7 @@ function computeSubstrate(s) {
   const angles = anglesOf(s);
   const finiteAngles = Object.values(angles).every(Number.isFinite);
   if (!orient || !finiteAngles) return { orient: null, res: null };
-  return { orient, res: solveSubstrate(orient) };
+  return { orient, res: solveSubstrate(orient, { set: s.consts }) };
 }
 
 function toParams(s) {
@@ -450,7 +454,7 @@ function updateSubstrateSweep(s) {
   const fam = pr.sweep;
   // Only the Euler family has fixed angles besides the swept one.
   const base = fam.cut === 'euler' ? { e1: s.e1, e2: s.e2 } : {};
-  const key = JSON.stringify([fam.cut, fam.key, base]);
+  const key = JSON.stringify([fam.cut, fam.key, base, s.consts]);
   sweepFam = { ...fam, at: fam.at ?? s[fam.key] };
   if (key === sweepKey) { renderSubstrateSweep(); return; }
   sweepKey = key;
@@ -458,7 +462,7 @@ function updateSubstrateSweep(s) {
   if (!worker) { sweepStatus('Background thread unavailable; the angle sweep is off.'); return; }
   sweepId += 1;
   sweepStatus('Computing the angle sweep…');
-  worker.postMessage({ id: sweepId, fam, base, list: SWEEP_LIST });
+  worker.postMessage({ id: sweepId, fam, base, list: SWEEP_LIST, set: s.consts });
 }
 
 function renderSubstrateSweep() {
@@ -512,7 +516,7 @@ function updateNotes(s) {
   if (s.cut === 'custom') {
     parts.push('Enter v, K² and Cs for your substrate.');
   } else if (r && r.ok) {
-    parts.push(`Solver (LiNbO₃ constants of Kushibiki et al. 1999): v₀ = ${nf(r.v0, 1)} m/s, vₘ = ${nf(r.vm, 1)} m/s, ` +
+    parts.push(`Solver (${CONSTANT_SETS[s.consts]?.label ?? ''}): v₀ = ${nf(r.v0, 1)} m/s, vₘ = ${nf(r.vm, 1)} m/s, ` +
       `K² = ${nf(r.K2 * 100, 3)} %, ε∞ = ${nf(r.epsInf, 2)} ε₀ (Cs = ${nf(r.Cs * 1e10, 3)} pF/cm), ` +
       `power-flow angle ${minus(nf(r.pfa, 2))}°.`);
     if (s.mode === 'manual') parts.push('Device model uses the values entered by hand.');

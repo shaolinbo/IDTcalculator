@@ -26,8 +26,7 @@ export function idtAdmittance(f, { f0, Np, K2, Cs, W }) {
 export const npOptimum = (K2) => Math.sqrt(Math.PI / (4 * K2));
 
 /**
- * Aperture W (m) that gives Re(Z) = R at f0 for the bare IDT (no tuning),
- * i.e. the W(N) formula of the 2024 notebook.
+ * Aperture W (m) that gives Re(Z) = R at f0 for the bare IDT (no tuning).
  */
 export function apertureForReZ({ f0, Np, K2, Cs }, R) {
   const a = 4 * K2 * Np;

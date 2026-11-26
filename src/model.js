@@ -10,6 +10,7 @@ import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js';
 import { orientation, csDatta } from './materials.js';
 import { padCapacitance } from './pads.js';
 import { solveSubstrate } from './saw/substrate.js';
+import { DEFAULT_SET } from './saw/constants.js';
 
 /**
  * Fill in substrate and pad values.
@@ -22,7 +23,7 @@ export function resolve(p) {
   const q = { ...p };
   const o = orientation(q.cut, q);
   if (q.substrate === 'solver' && o) {
-    q.sub = solveSubstrate(o);
+    q.sub = solveSubstrate(o, { set: q.consts });
     if (q.sub.ok) { q.v = q.sub.v0; q.K2 = q.sub.K2; q.Cs = q.sub.Cs; }
   }
   if (q.Cs == null) {
@@ -34,12 +35,13 @@ export function resolve(p) {
 }
 
 /**
- * Default parameters (SI). The device values follow the 2024 notebook
- * (128°Y-X, 220 MHz, Np = 22, W = 500 um); the rest are neutral starting values.
+ * Default parameters (SI). The device is a 128°Y-X reference design
+ * (220 MHz, Np = 22, W = 500 um); the rest are neutral starting values.
  */
 export const DEFAULTS = {
   cut: '128YX', psi: 0, rot: 128, e1: 0, e2: 38, e3: 0,
   substrate: 'solver', // 'solver' or 'manual' (use v, K2, Cs below)
+  consts: DEFAULT_SET, // LiNbO3 constant set for the solver (see CONSTANT_SETS)
   v: 3996, K2: 0.056, Cs: null, // Cs null -> clamped-permittivity estimate for the cut
   f0: 220e6, Np1: 22, Np2: 22, W: 500e-6, gap: 1000e-6,
   lossDbPerM: 0,

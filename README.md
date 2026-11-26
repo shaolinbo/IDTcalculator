@@ -58,31 +58,37 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
    - Free surface: traction-free, with D₃ continuous to the vacuum field. This gives v₀.
    - Metallized surface: traction-free, with φ = 0. This gives vₘ.
    - The roots are where the boundary determinant vanishes. That determinant is divided by the eigenvector determinant, so that coalescing partial waves do not produce spurious roots.
+   - Some orientations have a second root just below the bulk limit, for example a shear-horizontal wave that only metallization binds. The slowest root, the Rayleigh-type wave, is taken.
 3. **Coupling.** K² = 2(v₀ − vₘ)/v₀.
 4. **Capacitance.** ε∞ is the effective permittivity of the traction-free surface as v → 0. The tool uses it as Cs, the IDT capacitance per finger pair per unit aperture at metallization ratio 0.5.
 5. **Power-flow angle.** tan(PFA) = (1/v₀) dv₀/dψ, with ψ the in-plane rotation about the surface normal.
 
-**Constants.** LiNbO₃ constants are from Kushibiki et al. (1999), as tabulated in Kawada et al. (2025):
+**Constants.** Two LiNbO₃ sets are offered; the page selects one in the Substrate panel.
 
-| Quantity | Values |
-|---|---|
-| Elastic stiffness at constant E (10¹¹ N/m²) | c₁₁ = 1.9886, c₁₂ = 0.5467, c₁₃ = 0.6799, c₁₄ = 0.0783, c₃₃ = 2.3418, c₄₄ = 0.5985 |
-| Piezoelectric (C/m²) | e₁₅ = 3.655, e₂₂ = 2.407, e₃₁ = 0.328, e₃₃ = 1.894 |
-| Clamped permittivity | ε₁₁ = 44.9 ε₀, ε₃₃ = 26.7 ε₀ |
-| Density | ρ = 4642.8 kg/m³ |
+| Quantity | Default: Andrushchak et al. (2009), sample smp-1, ρ adjusted | Kushibiki et al. (1999) |
+|---|---|---|
+| c₁₁, c₁₂, c₁₃, c₁₄, c₃₃, c₄₄ at constant E (GPa) | 199.2, 54.7, 70, 7.9, 240, 59.9 | 198.86, 54.67, 67.99, 7.83, 234.18, 59.85 |
+| e₁₅, e₂₂, e₃₁, e₃₃ (C/m²) | 3.67, 2.38, 0.34, 1.6 | 3.655, 2.407, 0.328, 1.894 |
+| ε₁₁, ε₃₃ (ε₀) | 44, 27.9 | 44.9, 26.7 (clamped) |
+| ρ (kg/m³) | 4700 | 4642.8 |
 
-The tool computes c₆₆ = (c₁₁ − c₁₂)/2, as trigonal symmetry requires.
+- **Default set:** elastic, piezoelectric and dielectric constants of sample smp-1 in Andrushchak et al. (2009), Table II and Sec. II. The density is 4700 kg/m³, an adjusted value that matches measured devices; the paper measured 4628 kg/m³.
+- The paper gives c₁₃ = 70 ± 19 GPa and e₃₃ = 1.6 ± 0.9 C/m²; the other values are tighter. It does not say whether ε is at constant strain; the tool uses it as the clamped permittivity.
+- **Kushibiki et al. (1999):** as tabulated in Kawada et al. (2025).
+- Both papers fix the sign of c₁₄ by the IRE 1949 axes. The tool computes c₆₆ = (c₁₁ − c₁₂)/2, as trigonal symmetry requires.
 
 **Results for the presets.**
 
 | Orientation | Source | v₀ (m/s) | vₘ (m/s) | K² (%) | ε∞/ε₀ | Cs (pF/cm) |
 |---|---|---|---|---|---|---|
-| Y-Z | This solver | 3486.4 | 3412.7 | 4.23 | 46.1 | 4.078 |
+| Y-Z | Solver, default set | 3477.6 | 3399.7 | 4.48 | 46.2 | 4.089 |
+| Y-Z | Solver, Kushibiki | 3486.4 | 3412.7 | 4.23 | 46.1 | 4.078 |
 | Y-Z | Datta (1986) | 3488 | 3408 | 4.6 | – | – |
-| 128°Y-X | This solver | 3978.4 | 3870.7 | 5.41 | 55.3 | 4.894 |
+| 128°Y-X | Solver, default set | 3963.0 | 3856.6 | 5.37 | 54.7 | 4.844 |
+| 128°Y-X | Solver, Kushibiki | 3978.4 | 3870.7 | 5.41 | 55.3 | 4.894 |
 | 128°Y-X | Datta (1986) | 3996 | 3884 | 5.6 | – | – |
 
-The 2024 notebook used Cs = 3.61 pF/cm for 128°Y-X. That value is close to the clamped-permittivity estimate ε₀ + √(ε′₁₁ε′₃₃ − ε′₁₃²) = 3.53 pF/cm, which ignores piezoelectric stiffening. The solver's ε∞ gives 4.89 pF/cm.
+For 128°Y-X, the clamped-permittivity estimate ε₀ + √(ε′₁₁ε′₃₃ − ε′₁₃²), which ignores piezoelectric stiffening, gives Cs = 3.53 pF/cm. The solver's ε∞ gives 4.84 pF/cm (default set) or 4.89 pF/cm (Kushibiki).
 
 In **manual** mode, v, K² and Cs are typed in and the solver values are shown for reference.
 
@@ -107,7 +113,7 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 - **Finger resistance:** (2/3)ρW/(a h Np), with finger width a = λ/4.
 - **Pad capacitance:** a coplanar-waveguide estimate, 2·Cs·K(k)/K(k′)·L with k = s/(s + 2g).
 
-**Optimum aperture without tuning.** For a fixed Np, the conversion loss from a source of resistance R is lowest when |Z_IDT| = R. The 2024 notebook's W(N) formula gives Re Z = R instead. With the notebook's inputs (Np = 22), the two apertures are 832 µm and 992 µm, and they give 6.89 dB and 6.82 dB (bare IDTs, single transit).
+**Optimum aperture without tuning.** For a fixed Np, the conversion loss from a source of resistance R is lowest when |Z_IDT| = R. Choosing W for Re Z = R instead gives a smaller aperture. For 128°Y-X at 220 MHz with Np = 22, Cs = 3.61 pF/cm, K² = 5.5 % and R = 50 Ω, the two apertures are 832 µm (Re Z = R) and 992 µm (|Z| = R), and they give 6.89 dB and 6.82 dB (bare IDTs, single transit).
 
 **Limits.**
 
@@ -121,7 +127,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 **Device model.**
 
-- Reproduces the 2024 Mathematica notebook (`calculatuonOfImpedance20240819.nb`) to 1e-9: Z = 83.198 − j54.003 Ω and IL = 7.900 dB, for 128°Y-X, f₀ = 220 MHz, Np = 22, W = 500 µm, Cs = 3.61 pF/cm, K² = 5.5 %, 50 Ω.
+- Regression case, held to 1e-9: Z = 83.198 − j54.003 Ω and IL = 7.900 dB for 128°Y-X, f₀ = 220 MHz, Np = 22, W = 500 µm, Cs = 3.61 pF/cm, K² = 5.5 % and 50 Ω.
 - The aperture formulas give Re Z = Z₀ and |Z| = Z₀ respectively, and the |Z| = Z₀ aperture is a loss minimum.
 - Passivity (|S11|² + |S21|² ≤ 1) and reciprocity (S12 = S21) hold with all parasitics, tuning and the triple-transit echo on.
 - Two bidirectional IDTs never beat 6.02 dB single-transit loss.
@@ -131,10 +137,19 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 - An isotropic half-space gives the Rayleigh velocity for Poisson ratio 1/4, v_R/v_t = √(2 − 2/√3), to 1e-9.
 - With the piezoelectric constants set to zero, K² = 0 and ε∞ equals 1 + √(ε′₁₁ε′₃₃ − ε′₁₃²) exactly.
-- Y-Z and 128°Y-X agree with Datta's table within the spread between constant sets: 0.5 % in velocity, 10 % in K². ε∞ matches Morgan's 46 ε₀ (Y-Z) and 56 ε₀ (128°Y-X).
+- With either constant set, Y-Z and 128°Y-X agree with Datta's table within 1 % in velocity and 10 % in K². With the Kushibiki set, ε∞ matches Morgan's 46 ε₀ (Y-Z) and 56 ε₀ (128°Y-X).
 - Euler angles, the opposite face and reversed propagation give identical results.
 - The Z-cut 3-fold and mirror symmetries hold. The power-flow angle is zero where mirror symmetry requires it, and it agrees with the slope of v₀(ψ).
-- A regression test covers the rotated Y-cuts where partial waves coalesce.
+- Regression tests cover the rotated Y-cuts where partial waves coalesce, and an X-cut range with a second metallized-surface root.
+
+**Published data.** Data sets are JSON files in `tests/data/`, each with its source, whether it is measured or simulated, and its angle convention; `tests/published.test.mjs` compares them with the solver.
+
+| Data set | Kind | Agreement |
+|---|---|---|
+| X-cut, −85° to 85° from Z (Shao et al. 2022, Extended Data Fig. 1) | Simulated | Default set: v₀ and vₘ within 1.3 m/s, k² within 0.09 percentage points, same slowest direction (30°) and k² zero (−40°) |
+
+- The paper's angle θ from Z is the X-cut angle ψ = 90° + θ in this tool.
+- The data were read from the vector paths of the published figure.
 
 ## Roadmap
 
@@ -148,10 +163,12 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 
 ## References
 
+- A. S. Andrushchak, B. G. Mytsyk, H. P. Laba, O. V. Yurkevych, I. M. Solskii, A. V. Kityk, B. Sahraoui, "Complete sets of elastic constants and photoelastic coefficients of pure and MgO-doped lithium niobate crystals at room temperature," *J. Appl. Phys.* 106, 073510 (2009).
 - S. Datta, *Surface Acoustic Wave Devices*, Prentice-Hall, 1986.
 - T. Kawada, M. Kawaguchi, H. Matsumoto, M. Hayashi, "Model calculations of the strains associated with surface acoustic waves," arXiv:2504.12752 (2025).
 - J. Kushibiki, I. Takanaga, M. Arakawa, T. Sannomiya, "Accurate measurements of the acoustical physical constants of LiNbO₃ and LiTaO₃ single crystals," *IEEE Trans. Ultrason. Ferroelectr. Freq. Control* 46, 1315–1323 (1999).
 - D. Morgan, *Surface Acoustic Wave Devices*, 2nd ed., Academic Press, 2007.
+- L. Shao, D. Zhu, M. Colangelo, D. Lee, N. Sinclair, Y. Hu, P. T. Rakich, K. Lai, K. K. Berggren, M. Lončar, "Electrical control of surface acoustic waves," *Nat. Electron.* 5, 348–355 (2022).
 
 ## Files
 

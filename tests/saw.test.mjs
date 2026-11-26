@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LN_KUSHIBIKI } from '../src/saw/constants.js';
+import { LN_KUSHIBIKI, LN_ANDRUSHCHAK } from '../src/saw/constants.js';
 import { crystal, solveOrientation, polyRoots } from '../src/saw/solver.js';
 import { axesFromNP, axesFromEuler, rotateTensor } from '../src/saw/tensor.js';
 
@@ -65,6 +65,15 @@ test('LiNbO3 Y-Z and 128°Y-X against Datta (1986) and Morgan (2007)', () => {
   close(a.pfa, 0, 1e-6, '128 pfa (mirror symmetry)');
 });
 
+test('LiNbO3 Y-Z and 128°Y-X with the default constants (Andrushchak 2009, rho = 4700) against Datta (1986)', () => {
+  // The adjusted density lowers all velocities by 0.77 % from the paper's measured 4628 kg/m^3.
+  const ln = crystal(LN_ANDRUSHCHAK);
+  const yz = solveOrientation(ln, AYZ, { pfa: false });
+  rel(yz.v0, 3488, 0.01, 'YZ v0'); rel(yz.vm, 3408, 0.01, 'YZ vm'); rel(yz.K2, 0.046, 0.10, 'YZ K2');
+  const a = solveOrientation(ln, A128, { pfa: false });
+  rel(a.v0, 3996, 0.01, '128 v0'); rel(a.vm, 3884, 0.01, '128 vm'); rel(a.K2, 0.056, 0.10, '128 K2');
+});
+
 test('orientation invariances: Euler angles, opposite face, reversed propagation', () => {
   const ref = solveOrientation(LN, A128, { pfa: false });
   for (const [name, A] of [
@@ -92,6 +101,19 @@ test('no spurious roots where partial waves coalesce (rotated Y-cut, 59-61° and
     const a = v(th - 1).v0, b = v(th).v0, c = v(th + 1).v0;
     assert.ok(Math.abs(a - 2 * b + c) / b < 1e-3, `smooth v0 at ${th}°: ${a}, ${b}, ${c}`);
     assert.ok(b > Math.min(a, c) && b < Math.max(a, c), `v0 at ${th}° lies between its neighbours`);
+  }
+});
+
+test('metallized surface with a second surface wave: vm is the Rayleigh-type (slowest) root', () => {
+  // With this alternative constant set (close to Warner 1967), X-cut at psi = 18-25° has a second
+  // shorted-surface root just below the bulk limit (about 4038 m/s at 25°). The old search took it.
+  const alt = crystal({ rho: 4700, c11: 2.03e11, c12: 0.53e11, c13: 0.75e11, c14: 0.09e11, c33: 2.45e11,
+    c44: 0.60e11, c66: 0.75e11, e15: 3.7, e22: 2.5, e31: 0.2, e33: 1.3, eps11: 44, eps33: 29 });
+  const v = (psi) => solveOrientation(alt, axesFromNP([1, 0, 0], [0, Math.cos(psi * d), Math.sin(psi * d)]), { pfa: false });
+  for (const psi of [18, 21, 25]) {
+    const r = v(psi), a = v(psi - 1), b = v(psi + 1);
+    assert.ok(r.vm < r.v0 && r.K2 > 0, `psi ${psi}°: vm ${r.vm} < v0 ${r.v0}`);
+    assert.ok(Math.abs(a.vm - 2 * r.vm + b.vm) / r.vm < 1e-3, `smooth vm at ${psi}°: ${a.vm}, ${r.vm}, ${b.vm}`);
   }
 });
 

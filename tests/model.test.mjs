@@ -8,36 +8,36 @@ import { abs, abs2, dB, inv } from '../src/complex.js';
 
 const close = (a, b, tol, msg) => assert.ok(Math.abs(a - b) <= tol, `${msg}: ${a} vs ${b} (tol ${tol})`);
 
-// The 2024 Mathematica notebook (calculatuonOfImpedance20240819.nb), current inputs:
-// Rin = 50, f0 = 0.22 GHz, Np = 22, Cs = 3.61 pF/cm, ksq = 0.055, Wa = 0.05 cm.
-// Its outputs: Z0 = 83.19766021326612 - 54.00271862021832 i, IL = 7.899505494267967 dB.
-const NB = {
+// Regression case (impulse model, bare IDTs, single transit):
+// Rin = 50, f0 = 0.22 GHz, Np = 22, Cs = 3.61 pF/cm, K2 = 0.055, W = 0.05 cm.
+// Expected: Z = 83.19766021326612 - 54.00271862021832 i, IL = 7.899505494267967 dB.
+const REF = {
   ...DEFAULTS, K2: 0.055, Cs: 3.61e-10, Cpad: 0, f0: 220e6, Np1: 22, Np2: 22, W: 500e-6,
   fingerR: false, pads: false, Cft: 0, match: 'none', Z0: 50, lossDbPerM: 0,
 };
 
-test('reproduces the 2024 notebook: IDT impedance at f0', () => {
-  const r = evalAt(NB.f0, NB, derive(NB), false);
+test('regression case: IDT impedance at f0', () => {
+  const r = evalAt(REF.f0, REF, derive(REF), false);
   close(r.Zidt1.re, 83.19766021326612, 1e-9, 'Re Z');
   close(r.Zidt1.im, -54.00271862021832, 1e-9, 'Im Z');
   close(r.Zin1.re, 83.19766021326612, 1e-9, 'Re Zin (no parasitics, single transit)');
   close(r.Zin1.im, -54.00271862021832, 1e-9, 'Im Zin');
 });
 
-test('reproduces the 2024 notebook: insertion loss of the two-IDT line at f0', () => {
-  const r = evalAt(NB.f0, NB, derive(NB), false);
+test('regression case: insertion loss of the two-IDT line at f0', () => {
+  const r = evalAt(REF.f0, REF, derive(REF), false);
   close(-dB(r.S21), 7.899505494267967, 1e-9, 'IL');
 });
 
-test('notebook W(N) formula gives Re Z = Rin; |Z| aperture gives |Z| = Rin and minimum IL', () => {
-  const q = { f0: NB.f0, Np: 22, K2: NB.K2, Cs: NB.Cs };
+test('W(N) formula gives Re Z = Rin; |Z| aperture gives |Z| = Rin and minimum IL', () => {
+  const q = { f0: REF.f0, Np: 22, K2: REF.K2, Cs: REF.Cs };
   const w1 = apertureForReZ(q, 50);
-  close(inv(idtAdmittance(NB.f0, { ...q, W: w1 }).Y).re, 50, 1e-9, 'Re Z at W_ReZ');
+  close(inv(idtAdmittance(REF.f0, { ...q, W: w1 }).Y).re, 50, 1e-9, 'Re Z at W_ReZ');
   const w2 = apertureForAbsZ(q, 50);
-  close(abs(inv(idtAdmittance(NB.f0, { ...q, W: w2 }).Y)), 50, 1e-9, '|Z| at W_absZ');
-  const il = (W) => { const p = { ...NB, W }; return -dB(evalAt(p.f0, p, derive(p), false).S21); };
+  close(abs(inv(idtAdmittance(REF.f0, { ...q, W: w2 }).Y)), 50, 1e-9, '|Z| at W_absZ');
+  const il = (W) => { const p = { ...REF, W }; return -dB(evalAt(p.f0, p, derive(p), false).S21); };
   assert.ok(il(w2) < il(w2 * 1.05) && il(w2) < il(w2 * 0.95), 'IL is minimum at W_absZ');
-  close(w2 * 1e6, 991.9, 0.5, 'W_absZ in um for the notebook design');
+  close(w2 * 1e6, 991.9, 0.5, 'W_absZ in um for the regression case');
   close(il(w2), 6.818, 0.002, 'IL at W_absZ');
 });
 
@@ -74,7 +74,7 @@ test('auto tuning L cancels the reactance of each IDT on its own', async () => {
 });
 
 test('two bidirectional IDTs cannot beat 6.02 dB single-transit loss', () => {
-  const p = { ...NB, fingerR: false, pads: false };
+  const p = { ...REF, fingerR: false, pads: false };
   const s = sweepNp(p, 40);
   for (const il of [...s.ilW, ...s.ilAbs]) assert.ok(il >= 20 * Math.log10(2) - 1e-9, `IL ${il}`);
 });
