@@ -326,6 +326,14 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | X-cut, −85° to 85° from Z (Shao et al. 2022, Extended Data Fig. 1) | Simulated | Default set: v₀ and vₘ within 1.3 m/s, k² within 0.09 percentage points, same slowest direction (30°) and k² zero (−40°) |
 
+**Comparison, not a test: Mayor et al., Phys. Rev. Applied 15, 014039 (2021).** X-cut LN, 500 nm on sapphire, propagation along Y, 1 µm IDT period. The paper measures rib waveguides (300 nm rib on a 200 nm slab) and IDTs with 55 nm Al, and does not state its sapphire orientation or material constants, so an unpatterned-film calculation is not directly comparable:
+
+| Quantity | Paper | This tool, unpatterned 500 nm film, λ = 1 µm |
+|---|---|---|
+| Group velocity, Rayleigh-type | 3320 ± 30 m/s measured, 3336 m/s simulated (rib) | 3266 m/s |
+| Coupling, SH (Love-type) mode | k_eff² ≈ 15 % (open vs shorted band edges of the IDT unit cell) | K² = 18.3 % (Δv/v = 9.1 %) |
+| IDT centre frequency | 3.42 GHz measured | 4.07 GHz (Rayleigh-type) or 4.71 GHz (SH) from the phase velocity; not matched |
+
 - The paper's angle θ from Z is the X-cut angle φ = 90° + θ in this tool.
 - The data were read from the vector paths of the published figure.
 

@@ -1,13 +1,13 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=e80927370c';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=e80927370c';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=e80927370c';
-import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=e80927370c';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=e80927370c';
-import { STACKS, pickMode, pairShort } from './saw/stack.js?v=e80927370c';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=e80927370c';
-import { chipFigure } from './view3d.js?v=e80927370c';
-import { dB, abs } from './complex.js?v=e80927370c';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=57f4dfb508';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=57f4dfb508';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=57f4dfb508';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=57f4dfb508';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=57f4dfb508';
+import { STACKS, pickMode, pairShort } from './saw/stack.js?v=57f4dfb508';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=57f4dfb508';
+import { chipFigure } from './view3d.js?v=57f4dfb508';
+import { dB, abs } from './complex.js?v=57f4dfb508';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -278,7 +278,7 @@ function runInWorker(slot, msg, onDone) {
   if (slot.w && slot.busy) { slot.w.terminate(); slot.w = null; }
   try {
     if (!slot.w) {
-      slot.w = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
+      slot.w = new Worker(new URL('./saw/worker.js?v=57f4dfb508', import.meta.url), { type: 'module' });
       slot.w.onerror = () => { slot.w = null; slot.busy = false; onDone({ error: 'Background thread unavailable.' }); };
     }
     slot.w.onmessage = (ev) => { if (ev.data.progress != null && ev.data.rows == null && ev.data.result == null && !ev.data.error) { onDone({ progress: ev.data.progress }); return; } slot.busy = false; onDone(ev.data); };
@@ -331,7 +331,7 @@ function requestGrating(s) {
   gratingState = { key, result: null, status: 'pending' };
   try {
     if (!gratingWorker) {
-      gratingWorker = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
+      gratingWorker = new Worker(new URL('./saw/worker.js?v=57f4dfb508', import.meta.url), { type: 'module' });
       gratingWorker.onmessage = (ev) => {
         const d = ev.data;
         if (d.kind !== 'grating' || d.key !== gratingState.key) return;
@@ -693,7 +693,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=e80927370c', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=57f4dfb508', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;

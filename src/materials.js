@@ -3,8 +3,8 @@
 // Velocity, K^2 and Cs come from the partial-wave solver (src/saw/) for any
 // orientation. Published values for Y-Z and 128°Y-X are kept for comparison,
 // and the clamped-permittivity Cs estimate is kept as a quick reference.
-import { EPS0 } from './saw/constants.js?v=e80927370c';
-import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=e80927370c';
+import { EPS0 } from './saw/constants.js?v=57f4dfb508';
+import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=57f4dfb508';
 
 export { EPS0 };
 

@@ -13,7 +13,7 @@
 // traction-free bottom face with vacuum below (t = 0, D3 = i phi). At the top: traction-free,
 // and electrically open (D3 + i phi = 0, vacuum above) or shorted (phi = 0). A guided mode
 // is a velocity where the resulting 4x4 boundary matrix is singular.
-import { crystal, prepare, partialWaves, strohN, expmIn, bulkLimit, det4, nullVectors, solveE4, goldenMin } from './solver.js?v=e80927370c';
+import { crystal, prepare, partialWaves, strohN, expmIn, bulkLimit, det4, nullVectors, solveE4, goldenMin } from './solver.js?v=57f4dfb508';
 
 // Complex 4x4 matrices as [re, im] (Float64Array(16), row-major).
 const Z4 = () => [new Float64Array(16), new Float64Array(16)];

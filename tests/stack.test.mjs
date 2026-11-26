@@ -39,3 +39,13 @@ test('stack velocity is self-consistent with h/lambda = h f0 / v and K2 > 0', ()
   assert.ok(r.K2 > 0 && r.vm < r.v0, `K2 ${r.K2}`);
   assert.ok(r.v0 < r.vlim, 'guided below the substrate bulk limit');
 });
+
+test('strongly coupled SH mode is paired: X-cut, Y propagation, 500 nm LN on sapphire at lambda = 1 um', () => {
+  // Same stack as Mayor et al., Phys. Rev. Applied 15, 014039 (2021) (unpatterned film here; the
+  // paper reports k_eff^2 ~ 15 % for its IDT unit cell and a group velocity of 3.3 km/s).
+  // Shorting slows this SH mode by about 9 %, beyond the 8 % window used at first.
+  const r = stackSAW(orientation('Xcut', { psi: 0 }), { stack: 'lnos', hLN: 500e-9, f0: 4.7e9, subAngle: 30, mode: 'SH' });
+  assert.ok(r.ok, 'SH mode and its shorted partner found');
+  assert.ok(r.K2 > 0.15 && r.K2 < 0.22, `K2 ${r.K2}`);
+  assert.ok(Math.abs(r.hl - 0.5) < 0.01, `h/lambda ${r.hl}`);
+});

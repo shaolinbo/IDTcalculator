@@ -4,9 +4,9 @@
 // Si(100) or c-plane sapphire, with the SAW direction at an in-plane angle from Si [110] or
 // from the sapphire a-axis (X); SiO2 is isotropic. Thicknesses are physical; h/lambda is
 // solved together with lambda = v / f0, since the guided velocity depends on h/lambda.
-import { CONSTANT_SETS, DEFAULT_SET, EPS0, LAYER_MATERIALS } from './constants.js?v=e80927370c';
-import { makeStructure, findModes, epsInf } from './layered.js?v=e80927370c';
-import { axesFromNP } from './tensor.js?v=e80927370c';
+import { CONSTANT_SETS, DEFAULT_SET, EPS0, LAYER_MATERIALS } from './constants.js?v=57f4dfb508';
+import { makeStructure, findModes, epsInf } from './layered.js?v=57f4dfb508';
+import { axesFromNP } from './tensor.js?v=57f4dfb508';
 
 export const STACKS = {
   bulk: { label: 'Bulk LiNbO₃' },
@@ -48,7 +48,7 @@ export function pickMode(modes, want, plate) {
 /**
  * The shorted-surface partner of an open-surface mode: same family (type, or symmetry in a
  * plate), at or just below the open velocity (shorting slows a mode by about K^2/2, here at
- * most 8 %), and nearest to it. In thick films several branches of one family crowd
+ * most 30 %: strongly coupled SH waves on X-cut LN shift by more than 10 %), and nearest to it. In thick films several branches of one family crowd
  * together, so the pairing must be mutual: the partner's nearest open mode of that family
  * must be this one. Otherwise null (no K^2 rather than a mis-paired one).
  */
@@ -57,7 +57,7 @@ export function pairShort(open, modesShort, plate, modesOpen = [open]) {
   const fam = (m) => (plate ? m.sym : m.type);
   let best = null;
   for (const m of modesShort) {
-    if (fam(m) !== fam(open) || m.v > open.v * (1 + 1e-6) || m.v < open.v * 0.92) continue;
+    if (fam(m) !== fam(open) || m.v > open.v * (1 + 1e-6) || m.v < open.v * 0.7) continue;
     if (!best || open.v - m.v < open.v - best.v) best = m;
   }
   if (!best) return null;
