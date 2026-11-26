@@ -368,7 +368,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
 | 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness | Done. Metallization ratio as an input dropped (rarely needed); fixed at 0.5 |
 | 4 | Optimizer: Np, W and tuning L for lowest loss or widest band, with constraints | Skipped |
-| 5 | Thin-film LiNbO₃: LN/SiO₂/Si, LN on sapphire, suspended membrane; Rayleigh-type and SH modes | In progress (branch `phase5-thin-film`): layered solver, mode selection, dispersion charts |
+| 5 | Thin-film LiNbO₃: LN/SiO₂/Si, LN on sapphire, suspended membrane; Rayleigh-type and SH modes | In progress: layered solver, mode selection, dispersion charts, tests against published delay lines |
 
 ## References
 
