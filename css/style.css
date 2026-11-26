@@ -80,6 +80,8 @@ b { font-weight: 600; }
 }
 .top h1 { font-size: 18px; }
 .top p { margin: 2px 0 0; color: var(--ink-2); font-size: 13px; }
+.top p.credit { color: var(--muted); font-size: 12px; }
+.top p.credit a { color: var(--ink-2); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: inherit; font-size: 13px; color: var(--ink); background: var(--field);
@@ -131,7 +133,16 @@ legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; colo
 
 /* Cards */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.card .info { color: var(--muted); font-size: 11px; cursor: help; }
+/* Hover or focus a card to read what its number means. */
+.card .tip {
+  display: none; position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px); min-width: 220px;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--axis); background: var(--field);
+  color: var(--ink); font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.card:hover .tip, .card:focus .tip, .card:focus-within .tip { display: block; }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .card .k { font-size: 12px; color: var(--ink-2); }
 .card .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
 .card .s { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
@@ -142,6 +153,10 @@ legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; colo
 .chart { margin: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 10px 4px; min-width: 0; }
 .chart figcaption { font-size: 12px; color: var(--ink-2); margin: 0 4px 4px; }
 .plot { width: 100%; height: 300px; }
+/* Plotly axis drag: the middle of an axis shifts its range, the ends stretch it. */
+.js-plotly-plot .plotly .cursor-ew-resize, .js-plotly-plot .plotly .cursor-ns-resize { cursor: grab !important; }
+.js-plotly-plot .plotly .cursor-w-resize, .js-plotly-plot .plotly .cursor-e-resize { cursor: col-resize !important; }
+.js-plotly-plot .plotly .cursor-n-resize, .js-plotly-plot .plotly .cursor-s-resize { cursor: row-resize !important; }
 
 .plot.plot3d { height: 360px; }
 .euler { font-size: 13px; padding: 0 4px; }
@@ -164,4 +179,5 @@ legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; colo
 .notes li { margin: 4px 0; }
 .foot { padding: 12px 20px 20px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
 .foot a { color: var(--ink-2); }
+.foot p { margin: 4px 0; max-width: 1100px; }
 .status { color: var(--accent); font-weight: 600; }

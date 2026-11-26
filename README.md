@@ -6,16 +6,19 @@ A browser tool for surface-acoustic-wave interdigital transducers (IDTs) on lith
 
 **Status: v0.2.** Partial-wave substrate solver (Rayleigh-type SAW only; no leaky or pseudo-SAW) and impulse IDT model. See [Roadmap](#roadmap).
 
+Developed by Linbo Shao with Claude (Anthropic). Provided as is, without warranty; see [Disclaimer](#disclaimer).
+
 ## Use
 
 - **Online:** open <https://shaolinbo.github.io/IDTcalculator/>. It is served by GitHub Pages from the `main` branch, so each push updates it.
-- **Locally:** ES modules need an HTTP server, so `index.html` cannot be opened as a file.
+- **Locally:** ES modules need an HTTP server, so `index.html` cannot be opened as a file. Run
 
   ```
-  python -m http.server 8765
+  npm start
   ```
 
-  then open <http://localhost:8765>.
+  (or `node scripts/serve.mjs`) and open <http://localhost:8765>. This server turns browser caching off, so a normal refresh loads the current files. Other static servers, such as `python -m http.server`, let the browser reuse old modules after an edit.
+- **After editing** any file under `src/`, `css/` or `index.html`, run `npm run stamp`. It appends a content hash (`?v=…`) to every module and stylesheet URL, so browsers and the GitHub Pages cache (10 minutes) cannot mix old and new files. `npm test` fails while the stamps are out of date.
 
 Inputs live in the left panel. Every change updates the plots and the page URL, so **Copy link** shares the exact design.
 
@@ -23,6 +26,8 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 - **Download CSV** writes S-parameters, port impedances and IDT admittance.
 - **Angle-sweep charts:** click a point to move to that orientation.
 - **Orientation view:** drag to rotate the chip; **Copy** gives the COMSOL Euler angles in COMSOL syntax.
+- **Charts:** drag an axis end (marked ▸ and ▴) to stretch that axis, the middle of an axis to shift it, or a box in the plot to zoom; double-click resets. **Show data points on curves** (Sweep panel) marks every computed point, to check the frequency resolution.
+- **Result cards:** hover or focus a card for what its number means.
 
 ## What is computed
 
@@ -35,9 +40,11 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 | S11, S21, S22 | At the probe tips, both ports referenced to Z₀ |
 | Insertion loss at f₀ | −S21 at f₀; also the single-transit value (no triple-transit echo) |
 | Peak S21, 3-dB bandwidth | From the S21 trace |
+| Zero-to-zero bandwidth | Between the first transmission nulls on each side of the passband, from the S21 trace (one-step resolution); compared with 2f₀/N, N the larger Np |
+| Electrode pitch | p = λ/2, λ = v_IDT/f₀ the wavelength under the IDTs; finger width λ/4 |
 | Z at probe, port 1 | Includes pads, leads, finger resistance and loading by IDT 2 |
 | Bare IDT 1 | 1/(Ga + jBa + jωCt) of IDT 1 alone |
-| Group delay | −dφ/dω of S21 |
+| Group delay | −dφ/dω of S21; blank across transmission zeros (phase step > 90° between points) and where \|S21\| is more than 40 dB below its peak |
 | Finger-pair sweep | IL at f₀ and 3-dB bandwidth vs Np, for the current W and for the W that gives \|Z\| = Z₀ |
 | Design aids | W for Re Z = Z₀, W for \|Z\| = Z₀, Np for widest band √(π/4K²), tuning L that cancels the reactance at f₀, beam walk-off over the delay path |
 
@@ -47,18 +54,21 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 
 | Choice | Definition |
 |---|---|
-| 128°Y-X, Y-Z | Presets |
-| Rotated Y-cut, X-propagating | Rotation θ |
-| X-cut | ψ measured from Y toward Z |
-| Y-cut | ψ measured from X toward Z |
-| Z-cut | ψ measured from X toward Y |
+| 128°Y | Propagation angle φ from X; φ = 0 is 128°Y-X |
+| Y-Z | Preset: Y-cut, Z propagation |
+| Rotated Y-cut | Rotation θ of the normal from Y toward Z, and φ from X |
+| X-cut | φ measured from Y toward Z |
+| Y-cut | φ measured from X toward Z |
+| Z-cut | φ measured from X toward Y |
 | Euler angles (λ, μ, θ) | ZXZ convention; 128°Y-X = (0°, 38°, 0°) |
+
+On 128°Y and rotated Y-cuts, φ is positive counter-clockwise about the outward surface normal, so 128°Y at angle φ is the Euler set (0°, 38°, φ), and a rotated Y-cut θ is (0°, θ − 90°, φ). Published values (Datta) are shown only at φ = 0.
 
 The surface normal points out of the chip. Y-Z is (0°, −90°, −90°) on the +Y face and (0°, 90°, 90°) on the −Y face; opposite faces give the same SAW velocity and coupling.
 
 **COMSOL Euler angles.** COMSOL's Rotated System (Euler angles, Z-X-Z, intrinsic) maps crystal-axis components to the model's global axes. The page gives (α, β, γ) for two model frames; select the Rotated System as the coordinate system of the piezoelectric material, whose data stay in crystal axes.
 
-| Model | Global axes | 128°Y-X |
+| Model | Global axes | 128°Y-X (128°Y, φ = 0) |
 |---|---|---|
 | 3D | x = SAW direction, z = surface normal (out of the chip), y = z × x | (0°, −38°, 0°) |
 | 2D | x = SAW direction, y = surface normal (out of the chip), z = x × y | (0°, −128°, 0°) |
@@ -75,7 +85,7 @@ Both 128°Y-X values match COMSOL's application example *Euler Angle Rotation in
    - Some orientations have a second root just below the bulk limit, for example a shear-horizontal wave that only metallization binds. The slowest root, the Rayleigh-type wave, is taken.
 3. **Coupling.** K² = 2(v₀ − vₘ)/v₀.
 4. **Capacitance.** ε∞ is the effective permittivity of the traction-free surface as v → 0. The tool uses it as Cs, the IDT capacitance per finger pair per unit aperture at metallization ratio 0.5.
-5. **Power-flow angle.** tan(PFA) = (1/v₀) dv₀/dψ, with ψ the in-plane rotation about the surface normal.
+5. **Power-flow angle.** tan(PFA) = (1/v₀) dv₀/dφ, with φ the in-plane rotation of the propagation direction about the surface normal.
 
 **Constants.** Two LiNbO₃ sets are offered; the page selects one in the Substrate panel.
 
@@ -120,18 +130,20 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 - Ba = Ga₀ (sin 2x − 2x)/(2x²)
 - Ct = Np Cs W
 
-**Delay line.** The two IDTs share the aperture and period. Their acoustic transfer admittance is −√(Ga₀₁Ga₀₂)·sinc(x₁)·sinc(x₂)·e^(−jωτ), where τ is the centre-to-centre delay. An optional propagation loss is applied over the same distance. The exact Y→S conversion includes regeneration, and with it the triple-transit echo; a switch turns it off.
+**Delay line.** The two IDTs share the aperture and period. Their acoustic transfer admittance is −√(Ga₀₁Ga₀₂)·sinc(x₁)·sinc(x₂)·e^(−jωτ), where τ is the centre-to-centre delay: τ = gap/v₀ + (Np₁ + Np₂)/(2f₀). An optional propagation loss is applied over the same distance. The exact Y→S conversion includes regeneration, and with it the triple-transit echo; a switch turns it off.
 
 **Ports.** At each port the chain is: probe (Z₀) → tuning L (optional) → pad (shunt Cpad) → lead (R, L) → finger resistance → IDT. A feedthrough capacitance Cft joins the two pad nodes.
 
 - **Finger resistance:** (2/3)ρW/(a h Np), with finger width a = λ/4.
 - **Pad capacitance:** a coplanar-waveguide estimate, 2·Cs·K(k)/K(k′)·L with k = s/(s + 2g).
 
+**Heavy electrodes.** Under the IDTs the SAW is slower than on the free surface, from mass loading and electrical shorting. The model does not compute this shift. Enter it as Δv/v₀ (for example from FEM or a measured resonance); the IDT period λ = v₀(1 + Δv/v₀)/f₀, the electrode pitch λ/2 and the transit time inside the IDTs then use it, and the gap uses v₀. Details lists the wavelength under the IDTs, the free-surface wavelength v₀/f₀ and, for reference, the metallized-surface wavelength vₘ/f₀.
+
 **Optimum aperture without tuning.** For a fixed Np, the conversion loss from a source of resistance R is lowest when |Z_IDT| = R. Choosing W for Re Z = R instead gives a smaller aperture. For 128°Y-X at 220 MHz with Np = 22, Cs = 3.61 pF/cm, K² = 5.5 % and R = 50 Ω, the two apertures are 832 µm (Re Z = R) and 992 µm (|Z| = R), and they give 6.89 dB and 6.82 dB (bare IDTs, single transit).
 
 **Limits.**
 
-- No electrode reflections, mass loading, velocity shift under the IDT, or dispersion with metal thickness.
+- No electrode reflections, and no computed mass loading or dispersion with metal thickness; the velocity shift under the IDTs is an input.
 - No diffraction. The beam walk-off from the power-flow angle is reported but not included in S21.
 - Both IDTs share one aperture and one period. The metallization ratio is fixed at 0.5.
 
@@ -153,13 +165,20 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - With the piezoelectric constants set to zero, K² = 0 and ε∞ equals 1 + √(ε′₁₁ε′₃₃ − ε′₁₃²) exactly.
 - With either constant set, Y-Z and 128°Y-X agree with Datta's table within 1 % in velocity and 10 % in K². With the Kushibiki set, ε∞ matches Morgan's 46 ε₀ (Y-Z) and 56 ε₀ (128°Y-X).
 - Euler angles, the opposite face and reversed propagation give identical results.
-- The Z-cut 3-fold and mirror symmetries hold. The power-flow angle is zero where mirror symmetry requires it, and it agrees with the slope of v₀(ψ).
+- The Z-cut 3-fold and mirror symmetries hold. The power-flow angle is zero where mirror symmetry requires it, and it agrees with the slope of v₀(φ).
 - Regression tests cover the rotated Y-cuts where partial waves coalesce, and an X-cut range with a second metallized-surface root.
+
+**Delay-line extras.**
+
+- With unequal Np, the group delay is blank next to every null deeper than 60 dB and lies between 0 and 2τ elsewhere; at f₀ it equals τ.
+- The zero-to-zero bandwidth equals 2f₀/max(Np₁, Np₂) within two frequency steps for Np = 22/22, 22/15 and 10/30.
+- With Δv/v₀ = −2 %, the pitch is v₀(1 + Δv/v₀)/(2f₀) and τ = gap/v₀ + (Np₁ + Np₂)/(2f₀); with no shift, τ = Lcc/v₀.
 
 **Euler angles.**
 
 - The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
 - For 200 random orientations, plus β = 0° and 180°, the COMSOL and (λ, μ, θ) angles rebuild the rotation matrix.
+- 128°Y and rotated Y-cuts at propagation angle φ equal the Euler sets (0°, 38°, φ) and (0°, θ − 90°, φ).
 
 **Published data.** Data sets are JSON files in `tests/data/`, each with its source, whether it is measured or simulated, and its angle convention; `tests/published.test.mjs` compares them with the solver.
 
@@ -167,7 +186,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | X-cut, −85° to 85° from Z (Shao et al. 2022, Extended Data Fig. 1) | Simulated | Default set: v₀ and vₘ within 1.3 m/s, k² within 0.09 percentage points, same slowest direction (30°) and k² zero (−40°) |
 
-- The paper's angle θ from Z is the X-cut angle ψ = 90° + θ in this tool.
+- The paper's angle θ from Z is the X-cut angle φ = 90° + θ in this tool.
 - The data were read from the vector paths of the published figure.
 
 ## Roadmap
@@ -210,7 +229,13 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/pads.js` | Pad-capacitance estimate |
 | `src/complex.js` | Complex arithmetic |
 | `tests/` | Node tests |
+| `scripts/serve.mjs` | Local server with caching off (`npm start`) |
+| `scripts/stamp.mjs` | Content-hash stamps on module URLs (`npm run stamp`) |
+
+## Disclaimer
+
+This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space; no electrode reflections, mass loading or diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.
 
 ## License
 
-GNU General Public License v3.0. See [LICENSE](LICENSE).
+GNU General Public License v3.0. See [LICENSE](LICENSE). Developed by Linbo Shao with Claude (Anthropic).

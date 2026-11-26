@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAW IDT Calculator</title>
   <meta name="description" content="Impedance, S-parameters and insertion loss of SAW interdigital transducers on lithium niobate, in the browser.">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=6fac78a005">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-  <script type="module" src="src/ui.js"></script>
+  <script type="module" src="src/ui.js?v=6fac78a005"></script>
 </head>
 <body>
   <header class="top">
     <div class="title">
       <h1>SAW IDT calculator</h1>
       <p>Two-IDT delay line on LiNbO₃ between 50 Ω probe ports · Rayleigh-type SAW only (no leaky or pseudo-SAW) · partial-wave substrate solver + impulse model · v0.2</p>
+      <p class="credit">Developed by Linbo Shao with Claude (Anthropic) · <a href="https://github.com/shaolinbo/IDTcalculator/blob/main/LICENSE">GPL-3.0 license</a> · provided as is, without warranty; see the <a href="#disclaimer">disclaimer</a>.</p>
     </div>
     <nav class="actions" aria-label="Export and share">
       <button type="button" id="btn-s2p">Download .s2p</button>
@@ -31,6 +32,23 @@
     <section class="results" aria-live="polite">
       <div id="msg" class="msg" hidden></div>
       <div id="cards" class="cards"></div>
+      <section id="orientation">
+        <h2 class="section">Orientation and COMSOL Euler angles</h2>
+        <p class="hint">Chip axes: x along the SAW, z out of the top surface, substrate below. Drag the view to rotate it.</p>
+        <div class="grid">
+          <figure class="chart">
+            <figcaption><b>Chip and crystal axes</b> · blue: crystal X, Y, Z; orange: SAW direction (dashed: power flow); gray: chip axes x, y, z; gold: IDT fingers.</figcaption>
+            <div id="plot-3d" class="plot plot3d"></div>
+          </figure>
+          <figure class="chart">
+            <figcaption><b>COMSOL Rotated System</b> · Euler angles (Z-X-Z) that rotate the chip axes into the crystal axes.</figcaption>
+            <div id="euler" class="euler"></div>
+          </figure>
+        </div>
+      </section>
+
+      <h2 class="section">Delay-line response</h2>
+      <p class="hint">Drag an axis end (▸, ▴) to stretch that axis, the middle of an axis to shift it, or a box in the plot to zoom; double-click to reset.</p>
 
       <div class="grid">
         <figure class="chart">
@@ -59,20 +77,6 @@
         </figure>
       </div>
 
-      <section id="orientation">
-        <h2 class="section">Orientation and COMSOL Euler angles</h2>
-        <p class="hint">Chip axes: x along the SAW, z out of the top surface, substrate below. Drag the view to rotate it.</p>
-        <div class="grid">
-          <figure class="chart">
-            <figcaption><b>Chip and crystal axes</b> · blue: crystal X, Y, Z; orange: SAW direction (dashed: power flow); gray: chip axes x, y, z; gold: IDT fingers.</figcaption>
-            <div id="plot-3d" class="plot plot3d"></div>
-          </figure>
-          <figure class="chart">
-            <figcaption><b>COMSOL Rotated System</b> · Euler angles (Z-X-Z) that rotate the chip axes into the crystal axes.</figcaption>
-            <div id="euler" class="euler"></div>
-          </figure>
-        </div>
-      </section>
 
       <section id="substrate-sweep">
         <h2 class="section">Substrate: angle sweep</h2>
@@ -114,9 +118,10 @@
         <h2 class="section">Model and limits</h2>
         <ul>
           <li><b>IDT:</b> impulse (crossed-field) model, uniform single-electrode IDT, metallization ratio 0.5. Ga = 8K²CsWf₀Np²(sin x/x)², Ba its Hilbert transform, Ct = NpCsW. No electrode reflections, mass loading, diffraction or bulk-wave loss.</li>
-          <li><b>Delay line:</b> two IDTs with the same aperture and period; acoustic transfer √(Ga₁Ga₂)·sinc·sinc·e<sup>−jωτ</sup>. With regeneration on, the exact Y→S conversion includes the triple-transit echo.</li>
+          <li><b>Delay line:</b> two IDTs with the same aperture and period; acoustic transfer √(Ga₁Ga₂)·sinc·sinc·e<sup>−jωτ</sup>. With regeneration on, the exact Y→S conversion includes the triple-transit echo. Group delay is left blank across transmission zeros and where |S21| is more than 40 dB below its peak.</li>
+          <li><b>Heavy electrodes:</b> the SAW is slower under the IDTs than on the free surface (mass loading and shorting). The model does not compute this shift; enter it as Δv/v₀ (for example from FEM or a measured resonance). The IDT period, electrode pitch and transit time inside the IDTs then use v₀(1 + Δv/v₀); the gap uses v₀.</li>
           <li><b>Ports:</b> probe (Z₀) → optional tuning L → pad (shunt Cpad) → lead (R, L) → finger resistance (2/3)ρW/(a h Np) → IDT. Feedthrough Cft couples the two pad nodes.</li>
-          <li><b>Substrate:</b> a partial-wave solver for the piezoelectric half-space gives the free and metallized SAW velocities v₀ and vₘ, K² = 2(v₀ − vₘ)/v₀, the effective permittivity ε∞ (used as Cs) and the power-flow angle, for any cut and direction. LiNbO₃ constants: Andrushchak et al. (2009, sample smp-1) with ρ = 4700 kg/m³ by default, or Kushibiki et al. (1999). Rayleigh-type waves only: orientations with leaky or pseudo-SAW (e.g. 41° and 64° Y-X) are not modelled. Published values for Y-Z and 128°Y-X (Datta 1986) are shown for comparison.</li>
+          <li><b>Substrate:</b> a partial-wave solver for the piezoelectric half-space gives the free and metallized SAW velocities v₀ and vₘ, K² = 2(v₀ − vₘ)/v₀, the effective permittivity ε∞ (used as Cs) and the power-flow angle, for any cut and direction. LiNbO₃ constants: Andrushchak et al. (2009, sample smp-1) with ρ = 4700 kg/m³ by default, or Kushibiki et al. (1999). Rayleigh-type waves only: orientations with leaky or pseudo-SAW (e.g. 41° and 64° Y-cuts, X propagation) are not modelled. Published values for Y-Z and 128°Y at φ = 0 (Datta 1986) are shown for comparison. Propagation angle φ: on 128°Y and rotated Y-cuts, φ = 0 is the X direction, positive counter-clockwise about the outward surface normal.</li>
           <li><b>Pads:</b> Cpad from a coplanar-waveguide estimate; replace it with a value from an open-pad dummy if you have one.</li>
         </ul>
       </section>
@@ -124,7 +129,9 @@
   </main>
 
   <footer class="foot">
-    v0.2: impulse model with a partial-wave substrate solver for Rayleigh-type SAW only. Next: the coupling-of-modes model and the optimizer. <a href="https://github.com/shaolinbo/IDTcalculator">Source on GitHub</a>.
+    <p>v0.2: impulse model with a partial-wave substrate solver for Rayleigh-type SAW only. Next: the coupling-of-modes model and the optimizer. <a href="https://github.com/shaolinbo/IDTcalculator">Source on GitHub</a>. Developed by Linbo Shao with Claude (Anthropic).</p>
+    <p id="disclaimer"><b>Disclaimer.</b> This tool is provided as is, without warranty of any kind, express or implied, including fitness for a particular purpose. Its results come from simplified models (impulse IDT model; Rayleigh-type SAW on a piezoelectric half-space; no electrode reflections, mass loading or diffraction) and published material constants, and can differ from real devices. Check them independently before design, fabrication or purchasing decisions. The authors accept no liability for any use of the results.</p>
+    <p><b>License.</b> GNU General Public License v3.0 (<a href="https://github.com/shaolinbo/IDTcalculator/blob/main/LICENSE">LICENSE</a>). You may use, modify and share the code under its terms; derived works must keep the same license.</p>
   </footer>
 </body>
 </html>

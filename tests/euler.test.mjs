@@ -20,7 +20,7 @@ function randomOrientation() {
 }
 
 test('COMSOL angles for 128°Y-X match COMSOL\'s own example: (0, -38°, 0) in 3D, (0, -128°, 0) in 2D', () => {
-  const c = comsolEuler(orientation('128YX').A);
+  const c = comsolEuler(orientation('128Y').A);
   assert.deepEqual([c.d3.alpha, c.d3.beta, c.d3.gamma], [0, -38, 0]);
   assert.deepEqual([c.d2.alpha, c.d2.beta, c.d2.gamma], [0, -128, 0]);
 });
@@ -52,8 +52,17 @@ test('Z-X-Z angles rebuild the rotation, including beta = 0 and 180°', () => {
 });
 
 test('this tool\'s Euler angles: 128°Y-X = (0, 38°, 0); round trip for given angles', () => {
-  const t = toolEuler(orientation('128YX').A);
+  const t = toolEuler(orientation('128Y').A);
   assert.deepEqual([t.lambda, t.mu, t.theta], [0, 38, 0]);
   const e = zxzAngles(rotZXZ(25, 70, -40));
   assert.deepEqual([e.alpha, e.beta, e.gamma].map((x) => Math.round(x * 1e6) / 1e6), [25, 70, -40]);
+});
+
+test('128°Y and rotated Y-cuts with propagation angle phi equal Euler (0, rot - 90°, phi)', () => {
+  for (const phi of [0, 25, 90, -60]) {
+    sameMatrix(orientation('128Y', { psi: phi }).A, axesFromEuler(0, 38, phi), `128Y phi ${phi}`);
+    sameMatrix(orientation('RY', { rot: 41, psi: phi }).A, axesFromEuler(0, -49, phi), `RY 41 phi ${phi}`);
+  }
+  // phi = 0 is X propagation.
+  orientation('128Y', { psi: 0 }).p.forEach((x, i) => close(x, [1, 0, 0][i], 1e-15, 'p along X'));
 });

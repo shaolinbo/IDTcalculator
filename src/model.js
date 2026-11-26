@@ -4,13 +4,13 @@
 // Signal path at each port:  probe (Z0) -> tuning L -> pad (shunt Cpad)
 //   -> lead (series R + jwL) -> finger resistance -> IDT.
 // A feedthrough capacitance Cft connects the two pad nodes directly.
-import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js';
-import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js';
-import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js';
-import { orientation, csDatta } from './materials.js';
-import { padCapacitance } from './pads.js';
-import { solveSubstrate } from './saw/substrate.js';
-import { DEFAULT_SET } from './saw/constants.js';
+import { cx, mul, div, sub, add, scale, inv, expj, abs, dB, arg } from './complex.js?v=6fac78a005';
+import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResistance } from './impulse.js?v=6fac78a005';
+import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js?v=6fac78a005';
+import { orientation, csDatta } from './materials.js?v=6fac78a005';
+import { padCapacitance } from './pads.js?v=6fac78a005';
+import { solveSubstrate } from './saw/substrate.js?v=6fac78a005';
+import { DEFAULT_SET } from './saw/constants.js?v=6fac78a005';
 
 /**
  * Fill in substrate and pad values.
@@ -39,11 +39,12 @@ export function resolve(p) {
  * (220 MHz, Np = 22, W = 500 um); the rest are neutral starting values.
  */
 export const DEFAULTS = {
-  cut: '128YX', psi: 0, rot: 128, e1: 0, e2: 38, e3: 0,
+  cut: '128Y', psi: 0, rot: 128, e1: 0, e2: 38, e3: 0,
   substrate: 'solver', // 'solver' or 'manual' (use v, K2, Cs below)
   consts: DEFAULT_SET, // LiNbO3 constant set for the solver (see CONSTANT_SETS)
   v: 3996, K2: 0.056, Cs: null, // Cs null -> clamped-permittivity estimate for the cut
   f0: 220e6, Np1: 22, Np2: 22, W: 500e-6, gap: 1000e-6,
+  dvIdt: 0, // fractional SAW velocity shift under the IDTs (mass loading, shorting); -0.01 = 1 % slower
   lossDbPerM: 0,
   Z0: 50,
   fingerR: true, metal: 'Al', rho: 2.65e-8, h: 100e-9,
@@ -54,16 +55,22 @@ export const DEFAULTS = {
   span: 0.15, nPts: 2001,
 };
 
-/** Quantities that do not depend on frequency. */
+/**
+ * Quantities that do not depend on frequency. The IDT period follows the velocity under
+ * the IDTs, vIdt = v (1 + dvIdt), so that the IDTs are synchronous at f0; the gap uses v.
+ */
 export function derive(p) {
-  const lambda = p.v / p.f0;
+  const vIdt = p.v * (1 + (p.dvIdt ?? 0));
+  const lambda = vIdt / p.f0; // IDT period (wavelength under the IDTs)
+  const lambdaFree = p.v / p.f0; // free-surface wavelength at f0
+  const pitch = lambda / 2; // electrode pitch, single-electrode IDT
   const a = lambda / 4; // finger width at metallization ratio 0.5
   const Lcc = p.gap + (p.Np1 + p.Np2) * lambda / 2; // IDT centre-to-centre distance
-  const tau = Lcc / p.v;
+  const tau = p.gap / p.v + (p.Np1 + p.Np2) / (2 * p.f0); // half of each IDT at vIdt, gap at v
   const R1 = p.fingerR ? fingerResistance({ rho: p.rho, W: p.W, a, h: p.h, Np: p.Np1 }) : 0;
   const R2 = p.fingerR ? fingerResistance({ rho: p.rho, W: p.W, a, h: p.h, Np: p.Np2 }) : 0;
   const amp = Math.pow(10, -p.lossDbPerM * Lcc / 20);
-  return { lambda, a, Lcc, tau, R1, R2, amp };
+  return { vIdt, lambda, lambdaFree, pitch, a, Lcc, tau, R1, R2, amp };
 }
 
 const idt = (p, Np) => ({ f0: p.f0, Np, K2: p.K2, Cs: p.Cs, W: p.W });
@@ -151,20 +158,48 @@ export function band3dB(f, y) {
   return { fmax: f[im], ymax: y[im], lo, hi, bw: lo !== null && hi !== null ? hi - lo : null };
 }
 
-/** Group delay -d(phase)/d(omega) from an unwrapped phase trace. */
-export function groupDelay(f, S) {
+/**
+ * Group delay -d(phase)/d(omega) from an unwrapped phase trace (central differences).
+ * NaN where it is not meaningful: across a transmission zero (the phase steps by more
+ * than 90° between neighbouring points) or where |S| is more than floorDb below its peak.
+ */
+export function groupDelay(f, S, floorDb = 40) {
   const n = f.length, ph = new Float64Array(n), gd = new Float64Array(n);
+  const mag = Float64Array.from(S, (z) => dB(z));
+  const lvl = Math.max(...mag) - floorDb;
+  const jump = new Uint8Array(n); // jump[i]: phase step between i - 1 and i exceeds 90°
   let off = 0;
   for (let i = 0; i < n; i++) {
-    let a = arg(S[i]);
-    if (i > 0) { const dlt = a + off - ph[i - 1]; if (dlt > Math.PI) off -= 2 * Math.PI; else if (dlt < -Math.PI) off += 2 * Math.PI; }
+    const a = arg(S[i]);
+    if (i > 0) {
+      const dlt = a + off - ph[i - 1];
+      if (dlt > Math.PI) off -= 2 * Math.PI; else if (dlt < -Math.PI) off += 2 * Math.PI;
+      if (Math.abs(a + off - ph[i - 1]) > Math.PI / 2) jump[i] = 1;
+    }
     ph[i] = a + off;
   }
   for (let i = 0; i < n; i++) {
     const i0 = Math.max(0, i - 1), i1 = Math.min(n - 1, i + 1);
-    gd[i] = -(ph[i1] - ph[i0]) / (2 * Math.PI * (f[i1] - f[i0]));
+    const bad = jump[i] || (i1 > i && jump[i1]) || mag[i0] < lvl || mag[i] < lvl || mag[i1] < lvl;
+    gd[i] = bad ? NaN : -(ph[i1] - ph[i0]) / (2 * Math.PI * (f[i1] - f[i0]));
   }
   return gd;
+}
+
+/**
+ * First transmission nulls on each side of the S21 peak: the nearest local minima at
+ * least `depth` dB below the peak (shallower dips are passband ripple). Resolution:
+ * one frequency step. lo or hi is null when that null lies outside the sweep.
+ */
+export function nullBand(f, y, depth = 20) {
+  let im = 0;
+  for (let i = 1; i < y.length; i++) if (y[i] > y[im]) im = i;
+  const lvl = y[im] - depth;
+  const isMin = (i) => y[i] <= y[i - 1] && y[i] <= y[i + 1];
+  let lo = null, hi = null;
+  for (let i = im - 1; i > 0; i--) if (y[i] < lvl && isMin(i)) { lo = f[i]; break; }
+  for (let i = im + 1; i < y.length - 1; i++) if (y[i] < lvl && isMin(i)) { hi = f[i]; break; }
+  return { lo, hi, bw: lo !== null && hi !== null ? hi - lo : null };
 }
 
 /** Frequency sweep and summary numbers. */
@@ -191,6 +226,8 @@ export function simulate(p) {
     Zidt1: at0.Zidt1, Zin1: at0.Zin1, Zin2: at0.Zin2,
     s21f0: dB(at0.S21), s21f0single: dB(at0single.S21), s11f0: dB(at0.S11),
     band,
+    nulls: nullBand(f, s21dB),
+    bwNullImpulse: (2 * p.f0) / Math.max(p.Np1, p.Np2), // first nulls of the narrower sinc
     npOpt: npOptimum(p.K2),
     wReZ: apertureForReZ(idt1, p.Z0),
     wAbsZ: apertureForAbsZ(idt1, p.Z0),
@@ -243,7 +280,7 @@ export function toCSV(res) {
   const rows = res.pts.map((r, i) => [
     r.f, dB(r.S11), arg(r.S11) * deg, dB(r.S21), arg(r.S21) * deg, dB(r.S22), arg(r.S22) * deg,
     r.Zin1.re, r.Zin1.im, r.Zin2.re, r.Zin2.im, r.Zidt1.re, r.Zidt1.im, r.Ga1, r.Ba1, r.wCt1, res.gd[i],
-  ].map((x) => +x.toPrecision(10)).join(','));
+  ].map((x) => (Number.isFinite(x) ? +x.toPrecision(10) : '')).join(','));
   return [head, ...rows].join('\n') + '\n';
 }
 

@@ -3,8 +3,8 @@
 // Velocity, K^2 and Cs come from the partial-wave solver (src/saw/) for any
 // orientation. Published values for Y-Z and 128°Y-X are kept for comparison,
 // and the clamped-permittivity Cs estimate is kept as a quick reference.
-import { EPS0 } from './saw/constants.js';
-import { axesFromNP, axesFromEuler } from './saw/tensor.js';
+import { EPS0 } from './saw/constants.js?v=6fac78a005';
+import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=6fac78a005';
 
 export { EPS0 };
 
@@ -20,8 +20,8 @@ const deg = Math.PI / 180;
 /**
  * Orientation of a cut: { n, p, A } with n = surface normal, p = propagation
  * direction (crystal axes) and A the rotation to device axes (rows x1 = p, x2, x3 = n).
- * a holds the angles in degrees: psi (in-plane angle), rot (Y-cut rotation),
- * e1, e2, e3 (Euler angles, ZXZ). Returns null for the manual "custom" substrate.
+ * a holds the angles in degrees: psi (in-plane propagation angle, shown as φ on the page),
+ * rot (Y-cut rotation), e1, e2, e3 (Euler angles, ZXZ). Returns null for the "custom" substrate.
  */
 export function orientation(cut, a = {}) {
   if (typeof a === 'number') a = { psi: a };
@@ -29,8 +29,14 @@ export function orientation(cut, a = {}) {
   const c = Math.cos(psi), s = Math.sin(psi);
   let n, p;
   switch (cut) {
-    case '128YX': n = [0, Math.cos(128 * deg), Math.sin(128 * deg)]; p = [1, 0, 0]; break;
-    case 'RY': n = [0, Math.cos(rot), Math.sin(rot)]; p = [1, 0, 0]; break; // rotated Y-cut, X-propagating
+    case '128Y': case 'RY': {
+      // Rotated Y-cut: normal = Y rotated about X toward Z. phi from X, counter-clockwise
+      // about the outward normal (toward n × X); equals Euler (0, rot - 90°, phi).
+      const th = cut === '128Y' ? 128 * deg : rot;
+      n = [0, Math.cos(th), Math.sin(th)];
+      p = [c, s * Math.sin(th), -s * Math.cos(th)];
+      break;
+    }
     case 'YZ': n = [0, 1, 0]; p = [0, 0, 1]; break;
     case 'Xcut': n = [1, 0, 0]; p = [0, c, s]; break; // psi from +Y toward +Z
     case 'Ycut': n = [0, 1, 0]; p = [c, 0, s]; break; // psi from +X toward +Z
@@ -65,24 +71,25 @@ export function csDatta(orient, eps = LN_EPS_S) {
  * Cut presets. `pub` holds published values for comparison: v0 = free-surface
  * velocity, vm = metallized, K2 = 2(v0 - vm)/v0; Datta (1986) as tabulated in
  * Kawada et al., arXiv:2504.12752 (2025), Table 5.
- * `angle` names the angle field the cut uses; `sweep` is the family scanned in the
- * angle sweep (cut, angle key, value of this cut, sense of rotation about the normal).
+ * `angles` lists the angle fields the cut uses (psi is the propagation angle φ);
+ * `sweep` is the family scanned in the angle sweep (cut, angle key, value of this cut,
+ * sense of rotation about the normal). `pub` applies at psi = 0 when the cut has psi.
  */
 const DATTA = 'Datta (1986) via Kawada et al. (2025), Table 5';
 export const PRESETS = {
-  '128YX': { label: '128°Y-X LiNbO₃', pub: { v0: 3996, vm: 3884, K2: 0.056, source: DATTA },
-    sweep: { cut: 'RY', key: 'rot', at: 128, axis: 'Y-cut rotation θ (°), X propagation' } },
-  YZ: { label: 'Y-Z LiNbO₃', pub: { v0: 3488, vm: 3408, K2: 0.046, source: DATTA },
-    sweep: { cut: 'Ycut', key: 'psi', at: 90, sense: -1, axis: 'Y-cut, angle ψ from X toward Z (°)' } },
-  RY: { label: 'Rotated Y-cut, X-propagating (θ)', angle: 'rot',
-    sweep: { cut: 'RY', key: 'rot', axis: 'Y-cut rotation θ (°), X propagation' } },
-  Xcut: { label: 'X-cut LiNbO₃ (ψ from Y)', angle: 'psi',
-    sweep: { cut: 'Xcut', key: 'psi', sense: 1, axis: 'X-cut, angle ψ from Y toward Z (°)' } },
-  Ycut: { label: 'Y-cut LiNbO₃ (ψ from X)', angle: 'psi',
-    sweep: { cut: 'Ycut', key: 'psi', sense: -1, axis: 'Y-cut, angle ψ from X toward Z (°)' } },
-  Zcut: { label: 'Z-cut LiNbO₃ (ψ from X)', angle: 'psi',
-    sweep: { cut: 'Zcut', key: 'psi', sense: 1, axis: 'Z-cut, angle ψ from X toward Y (°)' } },
-  euler: { label: 'Euler angles (λ, μ, θ)', angle: 'euler',
+  '128Y': { label: '128°Y LiNbO₃ (φ from X)', angles: ['psi'], pub: { v0: 3996, vm: 3884, K2: 0.056, source: DATTA },
+    sweep: { cut: '128Y', key: 'psi', sense: 1, axis: '128°Y cut, propagation angle φ from X (°)' } },
+  YZ: { label: 'Y-Z LiNbO₃ (Y-cut, Z propagation)', angles: [], pub: { v0: 3488, vm: 3408, K2: 0.046, source: DATTA },
+    sweep: { cut: 'Ycut', key: 'psi', at: 90, sense: -1, axis: 'Y-cut, propagation angle φ from X toward Z (°)' } },
+  RY: { label: 'Rotated Y-cut (θ, φ from X)', angles: ['rot', 'psi'],
+    sweep: { cut: 'RY', key: 'rot', axis: 'Y-cut rotation θ (°) at the current φ' } },
+  Xcut: { label: 'X-cut LiNbO₃ (φ from Y)', angles: ['psi'],
+    sweep: { cut: 'Xcut', key: 'psi', sense: 1, axis: 'X-cut, propagation angle φ from Y toward Z (°)' } },
+  Ycut: { label: 'Y-cut LiNbO₃ (φ from X)', angles: ['psi'],
+    sweep: { cut: 'Ycut', key: 'psi', sense: -1, axis: 'Y-cut, propagation angle φ from X toward Z (°)' } },
+  Zcut: { label: 'Z-cut LiNbO₃ (φ from X)', angles: ['psi'],
+    sweep: { cut: 'Zcut', key: 'psi', sense: 1, axis: 'Z-cut, propagation angle φ from X toward Y (°)' } },
+  euler: { label: 'Euler angles (λ, μ, θ)', angles: ['e1', 'e2', 'e3'],
     sweep: { cut: 'euler', key: 'e3', sense: 1, axis: 'Euler angle θ (°), in-plane propagation' } },
   custom: { label: 'Custom (enter v, K², Cs)' },
 };

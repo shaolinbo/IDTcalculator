@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, resolve, derive, evalAt, simulate, sweepNp, toTouchstone, band3dB } from '../src/model.js';
+import { DEFAULTS, resolve, derive, evalAt, simulate, sweepNp, toTouchstone, band3dB, nullBand } from '../src/model.js';
 import { idtAdmittance, apertureForReZ, apertureForAbsZ } from '../src/impulse.js';
 import { orientation, csDatta } from '../src/materials.js';
 import { ellipK, padCapacitance } from '../src/pads.js';
@@ -80,7 +80,7 @@ test('two bidirectional IDTs cannot beat 6.02 dB single-transit loss', () => {
 });
 
 test('Cs estimate (Datta formula, clamped permittivity) for the preset cuts', () => {
-  close(csDatta(orientation('128YX')) * 1e10, 3.5275, 2e-4, '128YX Cs in pF/cm');
+  close(csDatta(orientation('128Y')) * 1e10, 3.5275, 2e-4, '128YX Cs in pF/cm');
   close(csDatta(orientation('YZ')) * 1e10, 3.1542, 2e-4, 'YZ Cs in pF/cm');
   // Y-cut at psi = 90 deg is Y-Z.
   close(csDatta(orientation('Ycut', 90)), csDatta(orientation('YZ')), 1e-20, 'Ycut 90 = YZ');
@@ -107,4 +107,45 @@ test('Touchstone export has header and one line per point', () => {
   const lines = txt.trim().split('\n');
   assert.ok(lines.includes('# HZ S RI R 50'));
   assert.equal(lines.filter((l) => !l.startsWith('!') && !l.startsWith('#')).length, 11);
+});
+
+test('group delay is blank (NaN) at transmission zeros and finite in the passband', () => {
+  // Unequal Np: single zeros of sinc(x1) sinc(x2) make the S21 phase jump by pi.
+  const p = { ...REF, Np2: 15 };
+  const r = simulate(p);
+  const tau = derive(p).tau;
+  const finite = Array.from(r.gd).filter(Number.isFinite);
+  assert.ok(finite.every((g) => g > 0 && g < 2 * tau), `finite group delay within (0, 2 tau): ${Math.min(...finite)}, ${Math.max(...finite)}`);
+  const i0 = r.f.findIndex((f) => f >= p.f0);
+  close(r.gd[i0], tau, 0.02 * tau, 'group delay at f0 = tau (single transit, no parasitics)');
+  // Every deep null has a blank group delay next to it.
+  for (let i = 1; i < r.f.length - 1; i++) {
+    if (r.s21dB[i] < r.summary.band.ymax - 60 && r.s21dB[i] <= r.s21dB[i - 1] && r.s21dB[i] <= r.s21dB[i + 1]) {
+      assert.ok(Number.isNaN(r.gd[i]) || Number.isNaN(r.gd[i + 1]), `blank near null at ${r.f[i]}`);
+    }
+  }
+});
+
+test('first-null (zero-to-zero) bandwidth = 2 f0 / max(Np) in the impulse model', () => {
+  for (const [Np1, Np2] of [[22, 22], [22, 15], [10, 30]]) {
+    const p = { ...REF, Np1, Np2, span: 0.4, nPts: 4001 };
+    const r = simulate(p);
+    const step = r.f[1] - r.f[0];
+    close(r.summary.nulls.bw, (2 * p.f0) / Math.max(Np1, Np2), 2 * step, `null-to-null for Np ${Np1}/${Np2}`);
+    close(r.summary.bwNullImpulse, (2 * p.f0) / Math.max(Np1, Np2), 1e-6, 'impulse value');
+  }
+  // Ripple dips shallower than 20 dB are not nulls; nulls outside the span give null.
+  const none = nullBand(Float64Array.from([0, 1, 2, 3, 4]), Float64Array.from([-30, -10, -5, -10, -30]));
+  assert.equal(none.bw, null);
+});
+
+test('velocity shift under the IDTs sets the pitch and the transit time inside the IDTs', () => {
+  const p = { ...REF, v: 4000, dvIdt: -0.02 };
+  const d = derive(p);
+  close(d.vIdt, 3920, 1e-9, 'v under IDT');
+  close(d.pitch, 3920 / p.f0 / 2, 1e-15, 'pitch = v_IDT / (2 f0)');
+  close(d.lambdaFree, 4000 / p.f0, 1e-15, 'free-surface wavelength');
+  close(d.tau, p.gap / 4000 + (p.Np1 + p.Np2) / (2 * p.f0), 1e-15, 'tau');
+  const d0 = derive({ ...p, dvIdt: 0 });
+  close(d0.tau, d0.Lcc / 4000, 1e-15, 'no shift: tau = Lcc / v');
 });

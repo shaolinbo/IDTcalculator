@@ -1,12 +1,12 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js';
-import { solveSubstrate } from './saw/substrate.js';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js';
-import { comsolEuler, toolEuler } from './saw/euler.js';
-import { chipFigure } from './view3d.js';
-import { dB, abs } from './complex.js';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=6fac78a005';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=6fac78a005';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=6fac78a005';
+import { solveSubstrate } from './saw/substrate.js?v=6fac78a005';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=6fac78a005';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=6fac78a005';
+import { chipFigure } from './view3d.js?v=6fac78a005';
+import { dB, abs } from './complex.js?v=6fac78a005';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -19,17 +19,17 @@ const GROUPS = [
   ['sim', 'Sweep'],
 ];
 
-const angleOf = (s) => PRESETS[s.cut]?.angle;
+const usesAngle = (key) => (s) => (PRESETS[s.cut]?.angles ?? []).includes(key);
 const usesSolver = (s) => s.cut !== 'custom' && s.mode === 'solver' && !!subState?.res?.ok;
 
 const FIELDS = [
-  { g: 'sub', key: 'cut', label: 'Cut and direction', type: 'select', def: '128YX',
+  { g: 'sub', key: 'cut', label: 'Cut', type: 'select', def: '128Y',
     options: Object.entries(PRESETS).map(([k, o]) => [k, o.label]) },
-  { g: 'sub', key: 'psi', label: 'In-plane angle ψ', unit: '°', si: 1, def: 0, step: 1, show: (s) => angleOf(s) === 'psi' },
-  { g: 'sub', key: 'rot', label: 'Y-cut rotation θ', unit: '°', si: 1, def: 128, step: 1, show: (s) => angleOf(s) === 'rot' },
-  { g: 'sub', key: 'e1', label: 'Euler λ', unit: '°', si: 1, def: 0, step: 1, show: (s) => angleOf(s) === 'euler' },
-  { g: 'sub', key: 'e2', label: 'Euler μ', unit: '°', si: 1, def: 38, step: 1, show: (s) => angleOf(s) === 'euler' },
-  { g: 'sub', key: 'e3', label: 'Euler θ', unit: '°', si: 1, def: 0, step: 1, show: (s) => angleOf(s) === 'euler' },
+  { g: 'sub', key: 'rot', label: 'Y-cut rotation θ', unit: '°', si: 1, def: 128, step: 1, show: usesAngle('rot') },
+  { g: 'sub', key: 'psi', label: 'Propagation angle φ', unit: '°', si: 1, def: 0, step: 1, show: usesAngle('psi') },
+  { g: 'sub', key: 'e1', label: 'Euler λ', unit: '°', si: 1, def: 0, step: 1, show: usesAngle('e1') },
+  { g: 'sub', key: 'e2', label: 'Euler μ', unit: '°', si: 1, def: 38, step: 1, show: usesAngle('e2') },
+  { g: 'sub', key: 'e3', label: 'Euler θ', unit: '°', si: 1, def: 0, step: 1, show: usesAngle('e3') },
   { g: 'sub', key: 'mode', label: 'Substrate values', type: 'select', def: 'solver',
     options: [['solver', 'Computed (partial-wave solver)'], ['manual', 'Entered by hand']],
     show: (s) => s.cut !== 'custom' },
@@ -44,6 +44,7 @@ const FIELDS = [
   { g: 'idt', key: 'Np1', label: 'Finger pairs, IDT 1', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'Np2', label: 'Finger pairs, IDT 2', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'W', label: 'Aperture W', unit: 'µm', si: 1e-6, def: 500, step: 1, min: 0 },
+  { g: 'idt', key: 'dvIdt', label: 'Velocity shift under IDTs Δv/v₀', unit: '%', si: 0.01, def: 0, step: 0.1, min: -30, max: 30, zeroOk: true },
   { g: 'idt', key: 'gap', label: 'Gap between IDTs', unit: 'µm', si: 1e-6, def: 1000, step: 10, min: 0, zeroOk: true },
   { g: 'idt', key: 'loss', label: 'Propagation loss', unit: 'dB/mm', si: 1000, def: 0, step: 0.01, min: 0, zeroOk: true },
 
@@ -78,6 +79,7 @@ const FIELDS = [
   { g: 'sim', key: 'span', label: 'Span, ± of f₀', unit: '%', si: 0.01, def: 15, step: 1, min: 0, max: 95 },
   { g: 'sim', key: 'nPts', label: 'Frequency points', type: 'int', si: 1, def: 2001, step: 100, min: 11, max: 20001 },
   { g: 'sim', key: 'regeneration', label: 'Include triple-transit echo (regeneration)', type: 'check', def: true },
+  { g: 'sim', key: 'markers', label: 'Show data points on curves', type: 'check', def: false },
 ];
 const BY_KEY = Object.fromEntries(FIELDS.map((f) => [f.key, f]));
 const SUBSTRATE_KEYS = ['v', 'K2', 'Cs'];
@@ -234,7 +236,7 @@ function toParams(s) {
   if (usesSolver(s)) ({ v0: v, K2, Cs } = subState.res);
   return resolve({
     cut: p.cut, ...anglesOf(s), substrate: 'manual', v, K2, Cs,
-    f0: p.f0, Np1: p.Np1, Np2: p.Np2, W: p.W, gap: p.gap, lossDbPerM: p.loss,
+    f0: p.f0, Np1: p.Np1, Np2: p.Np2, W: p.W, gap: p.gap, lossDbPerM: p.loss, dvIdt: p.dvIdt,
     Z0: p.Z0, fingerR: p.fingerR, rho: p.rho, h: p.h,
     pads: p.pads, padS: p.padS, padG: p.padG, padL: p.padL, Cpad: s.CpadAuto ? null : p.Cpad,
     Rlead: p.Rlead, Llead: p.Llead, Cft: p.Cft,
@@ -272,7 +274,7 @@ function baseLayout(t, xTitle, yTitle) {
     font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif', size: 12, color: t.ink2 },
     margin: { l: 56, r: 12, t: 28, b: 42 },
     xaxis: ax(xTitle), yaxis: ax(yTitle),
-    legend: { orientation: 'h', x: 0, y: 1.02, yanchor: 'bottom', font: { size: 11, color: t.ink2 } },
+    legend: { orientation: 'h', x: 0.03, y: 1.02, yanchor: 'bottom', font: { size: 11, color: t.ink2 } }, // clear of the y-axis triangle
     hovermode: 'x unified',
     hoverlabel: { bgcolor: t.surface, bordercolor: t.axis, font: { color: t.ink } },
   };
@@ -287,7 +289,25 @@ function line(x, y, name, color, extra = {}) {
   const { line: lx = {}, ...rest } = extra;
   return { x, y, name, type: 'scatter', mode: 'lines', ...rest, line: { color, width: 2, ...lx } };
 }
-const react = (id, data, layout) => window.Plotly && window.Plotly.react(id, data, layout, CONFIG);
+// Triangles at the far ends of the x and y axes: drag an axis end to stretch the range,
+// the middle of an axis to shift it (Plotly axis drag; cursors set in style.css).
+const axisEnds = (t) => [
+  { xanchor: 1, yanchor: 0, path: 'M 3 -5 L 11 0 L 3 5 Z' },
+  { xanchor: 0, yanchor: 1, path: 'M -5 3 L 0 11 L 5 3 Z' },
+].map((m) => ({
+  type: 'path', xref: 'paper', yref: 'paper', xsizemode: 'pixel', ysizemode: 'pixel', layer: 'above',
+  fillcolor: t.muted, line: { width: 0 }, ...m,
+}));
+
+let showPoints = false; // "Show data points on curves"
+function react(id, data, layout) {
+  if (!window.Plotly) return;
+  const d = showPoints
+    ? data.map((tr) => (tr.mode === 'lines' ? { ...tr, mode: 'lines+markers', marker: { size: 4, color: tr.line?.color } } : tr))
+    : data;
+  const lay = layout.xaxis ? { ...layout, shapes: [...(layout.shapes ?? []), ...axisEnds(theme())] } : layout;
+  window.Plotly.react(id, d, lay, CONFIG);
+}
 
 // ---------------------------------------------------------------------------
 // Render: device results
@@ -301,16 +321,28 @@ function render(s, p, res) {
   const sub = subState?.res;
 
   // Cards
-  const bw = S.band.bw;
+  const bw = S.band.bw, bwn = S.nulls.bw;
+  const step = (res.f[1] - res.f[0]) / 1e6;
   const cards = [
-    ['Insertion loss at f₀', `${nf(-S.s21f0)} dB`, `single transit: ${nf(-S.s21f0single)} dB`],
-    ['Peak S21', `${minus(nf(S.band.ymax))} dB`, `at ${nf(S.band.fmax / 1e6, 3)} MHz`],
-    ['3-dB bandwidth', bw ? `${nf(bw / 1e6, 2)} MHz` : 'wider than span', bw ? `${nf(100 * bw / p.f0, 2)} % of f₀` : 'increase the span'],
-    ['Z at probe, port 1 (f₀)', fmtZ(S.Zin1), `|Z| = ${nf(abs(S.Zin1), 1)} Ω · S11 = ${minus(nf(S.s11f0))} dB`],
-    ['Bare IDT 1 (f₀)', fmtZ(S.Zidt1), `Ct = ${nf(S.Ct1 * 1e12, 3)} pF · Ga₀ = ${nf(S.Ga01 * 1e3, 3)} mS`],
+    ['Insertion loss at f₀', `${nf(-S.s21f0)} dB`, `single transit: ${nf(-S.s21f0single)} dB`,
+      'Loss from port 1 to port 2 at f₀, −20·log₁₀|S21|, at the probe tips with pads, leads, finger resistance and tuning. Single transit: the same without the triple-transit echo (acoustic regeneration between the IDTs).'],
+    ['Peak S21', `${minus(nf(S.band.ymax))} dB`, `at ${nf(S.band.fmax / 1e6, 3)} MHz`,
+      'Highest |S21| in the sweep and its frequency. It can sit off f₀ because of the triple-transit ripple and the electrical loading of the IDTs.'],
+    ['Electrode pitch', `${nf(S.pitch * 1e6, 3)} µm`, `λ = ${nf(S.lambda * 1e6, 3)} µm · finger ${nf(S.a * 1e6, 3)} µm`,
+      'Finger centre-to-centre distance of the single-electrode IDTs, p = λ/2, where λ = v_IDT/f₀ is the wavelength under the IDTs at f₀. Finger width λ/4 (metallization ratio 0.5). For heavy electrodes, enter the velocity shift under the IDTs (IDTs and delay line); Details lists both wavelengths.'],
+    ['3-dB bandwidth', bw ? `${nf(bw / 1e6, 2)} MHz` : 'wider than span', bw ? `${nf(100 * bw / p.f0, 2)} % of f₀` : 'increase the span',
+      'Width of the band where |S21| stays within 3 dB of its peak.'],
+    ['Zero-to-zero bandwidth', bwn ? `${nf(bwn / 1e6, 2)} MHz` : 'nulls outside span',
+      bwn ? `${nf(100 * bwn / p.f0, 2)} % of f₀ · 2f₀/N = ${nf(S.bwNullImpulse / 1e6, 2)} MHz` : 'increase the span',
+      `Frequency span between the first transmission nulls on each side of the passband, read from the S21 trace (resolution ${sig(step, 3)} MHz, one frequency step). In the impulse model the first nulls are at f₀(1 ± 1/N), so the width is 2f₀/N, with N the larger finger-pair count of the two IDTs.`],
+    ['Z at probe, port 1 (f₀)', fmtZ(S.Zin1), `|Z| = ${nf(abs(S.Zin1), 1)} Ω · S11 = ${minus(nf(S.s11f0))} dB`,
+      'Impedance seen from the probe tip into port 1 at f₀, as a calibrated VNA measures it: IDT 1 with its finger resistance, leads, pad capacitance and tuning inductor, and with IDT 2 present and port 2 terminated in Z₀. S11 is its reflection against Z₀.'],
+    ['Bare IDT 1 (f₀)', fmtZ(S.Zidt1), `Ct = ${nf(S.Ct1 * 1e12, 3)} pF · Ga₀ = ${nf(S.Ga01 * 1e3, 3)} mS`,
+      'Impedance of IDT 1 by itself at f₀, 1/(Ga + jBa + jωCt): radiation conductance Ga, acoustic susceptance Ba and finger capacitance Ct only, without pads, leads, finger resistance or the second IDT. Ga₀ is Ga at f₀.'],
   ];
-  document.getElementById('cards').innerHTML = cards.map(([k, v, sb]) =>
-    `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sb}</div></div>`).join('');
+  document.getElementById('cards').innerHTML = cards.map(([k, v, sb, tip]) =>
+    `<div class="card" tabindex="0"><div class="k">${k} <span class="info" aria-hidden="true">ⓘ</span></div>` +
+    `<div class="v">${v}</div><div class="s">${sb}</div><div class="tip" role="tooltip">${tip}</div></div>`).join('');
 
   // Details table
   const m = S.match;
@@ -325,7 +357,11 @@ function render(s, p, res) {
       ['Beam walk-off over centre-to-centre distance', walk == null ? '–' : `${minus(nf(walk * 1e6, 1))} µm (W = ${nf(p.W * 1e6, 0)} µm)`],
     ] : []),
     ...(sub ? [['Slowest bulk-wave limit', `${nf(sub.vlim, 1)} m/s`]] : []),
-    ['Wavelength λ / finger width', `${nf(S.lambda * 1e6, 3)} / ${nf(S.a * 1e6, 3)} µm`],
+    ['Electrode pitch p = λ/2', `${nf(S.pitch * 1e6, 3)} µm`],
+    ['Wavelength under the IDTs λ / finger width λ/4', `${nf(S.lambda * 1e6, 3)} / ${nf(S.a * 1e6, 3)} µm`],
+    ['Velocity under the IDTs (Δv/v₀)', `${nf(S.vIdt, 1)} m/s (${minus(nf((p.dvIdt ?? 0) * 100, 2))} %)`],
+    ['Free-surface wavelength v₀/f₀', `${nf(S.lambdaFree * 1e6, 3)} µm`],
+    ...(sub?.ok ? [['Metallized-surface wavelength vₘ/f₀ (shorting only)', `${nf((sub.vm / p.f0) * 1e6, 3)} µm`]] : []),
     ['IDT lengths (1 / 2)', `${nf(p.Np1 * S.lambda * 1e6, 0)} / ${nf(p.Np2 * S.lambda * 1e6, 0)} µm`],
     ['Centre-to-centre distance', `${nf(S.Lcc * 1e3, 3)} mm`],
     ['Acoustic delay τ', `${nf(S.tau * 1e6, 4)} µs`],
@@ -394,7 +430,8 @@ function render(s, p, res) {
   });
 
   // Group delay
-  react('plot-gd', [line(fM, Array.from(res.gd, (x) => x * 1e6), 'Group delay', t.s1)],
+  // Blank (null) where the group delay is undefined: transmission zeros, deep stopband.
+  react('plot-gd', [line(fM, Array.from(res.gd, (x) => (Number.isFinite(x) ? x * 1e6 : null)), 'Group delay', t.s1)],
     { ...baseLayout(t, 'Frequency (MHz)', 'Group delay (µs)'), showlegend: false, shapes: [vline(f0M, t)] });
 }
 
@@ -434,7 +471,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=6fac78a005', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;
@@ -455,7 +492,7 @@ function updateSubstrateSweep(s) {
   section.hidden = false;
   const fam = pr.sweep;
   // Only the Euler family has fixed angles besides the swept one.
-  const base = fam.cut === 'euler' ? { e1: s.e1, e2: s.e2 } : {};
+  const base = fam.cut === 'euler' ? { e1: s.e1, e2: s.e2 } : fam.cut === 'RY' ? { psi: s.psi } : {};
   const key = JSON.stringify([fam.cut, fam.key, base, s.consts]);
   sweepFam = { ...fam, at: fam.at ?? s[fam.key] };
   if (key === sweepKey) { renderSubstrateSweep(); return; }
@@ -495,7 +532,7 @@ function renderSubstrateSweep() {
   document.getElementById('sweep-hint').textContent =
     `Free and metallized velocity, K², power-flow angle and Cs = ε∞ across ${sweepFam.axis.replace(/ \(°\).*/, '')}, 1° steps. ` +
     'Dotted line: current orientation. Click a chart to move to that angle.' +
-    (sweepFam.cut === 'RY' ? ' Only the Rayleigh-type wave is computed; on 41° and 64° Y-X the strongly coupled wave is a leaky shear wave, which is not shown.' : '') +
+    (sweepFam.cut === 'RY' ? ' Only the Rayleigh-type wave is computed; on 41° and 64° Y-cuts at φ = 0 the strongly coupled wave is a leaky shear wave, which is not shown.' : '') +
     (gaps ? ` Gaps (${gaps} of ${sweepRows.length} angles): no true SAW below the bulk-wave limit (leaky waves are not modelled).` : '');
 }
 
@@ -561,7 +598,7 @@ function updateNotes(s) {
     warn = true;
     parts.push(`No true SAW below the slowest bulk-wave limit (${nf(r.vlim, 1)} m/s) for this orientation; it carries leaky waves only, which the solver does not model. The device model uses the values entered by hand.`);
   }
-  if (pr?.pub) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
+  if (pr?.pub && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
   notes.sub.textContent = parts.join(' ');
   notes.sub.className = warn ? 'note warn' : 'note';
   notes.port.textContent = 'Reference plane: probe tips after calibration. Turn pads off to compare with de-embedded data.';
@@ -582,6 +619,7 @@ let timer = null, npTimer = null;
 function update() {
   const s = readForm();
   subState = computeSubstrate(s);
+  showPoints = !!s.markers;
   const ok = refreshForm(s);
   // Show solver values in the (disabled) substrate fields.
   if (usesSolver(s)) {
