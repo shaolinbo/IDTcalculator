@@ -59,6 +59,21 @@
         </figure>
       </div>
 
+      <section id="orientation">
+        <h2 class="section">Orientation and COMSOL Euler angles</h2>
+        <p class="hint">Chip axes: x along the SAW, z out of the top surface, substrate below. Drag the view to rotate it.</p>
+        <div class="grid">
+          <figure class="chart">
+            <figcaption><b>Chip and crystal axes</b> · blue: crystal X, Y, Z; orange: SAW direction (dashed: power flow); gray: chip axes x, y, z; gold: IDT fingers.</figcaption>
+            <div id="plot-3d" class="plot plot3d"></div>
+          </figure>
+          <figure class="chart">
+            <figcaption><b>COMSOL Rotated System</b> · Euler angles (Z-X-Z) that rotate the chip axes into the crystal axes.</figcaption>
+            <div id="euler" class="euler"></div>
+          </figure>
+        </div>
+      </section>
+
       <section id="substrate-sweep">
         <h2 class="section">Substrate: angle sweep</h2>
         <p class="hint"><span id="sweep-hint">Free and metallized velocity, K², power-flow angle and Cs across the angle family of the current cut.</span> <span id="sweep-status" class="status"></span></p>

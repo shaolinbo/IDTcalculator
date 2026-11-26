@@ -4,6 +4,8 @@ import { PRESETS, METALS, orientation, csDatta } from './materials.js';
 import { apertureForReZ, apertureForAbsZ } from './impulse.js';
 import { solveSubstrate } from './saw/substrate.js';
 import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js';
+import { comsolEuler, toolEuler } from './saw/euler.js';
+import { chipFigure } from './view3d.js';
 import { dB, abs } from './complex.js';
 
 // ---------------------------------------------------------------------------
@@ -507,6 +509,40 @@ function onSweepClick(ev) {
 }
 
 // ---------------------------------------------------------------------------
+// Orientation: 3D chip view and COMSOL Euler angles
+const degStr = (x) => String(Math.round(x * 1000) / 1000 || 0); // ASCII, for COMSOL
+const degShow = (x) => `${degStr(x).replace('-', '−')}°`;
+const vecShow = (v) => `(${v.map((x) => (Math.abs(x) < 5e-4 ? '0' : x.toFixed(3).replace('-', '−'))).join(', ')})`;
+
+function updateOrientation() {
+  const sec = document.getElementById('orientation');
+  const o = subState?.orient;
+  sec.hidden = !o;
+  if (!o) return;
+  if (window.Plotly) {
+    const fig = chipFigure(o.A, subState.res?.ok ? subState.res.pfa : null, theme());
+    window.Plotly.react('plot-3d', fig.data, fig.layout, { ...CONFIG, modeBarButtonsToRemove: [] });
+  }
+  const c = comsolEuler(o.A), te = toolEuler(o.A);
+  const row = (name, e) => {
+    const copy = `alpha ${degStr(e.alpha)}[deg]\nbeta ${degStr(e.beta)}[deg]\ngamma ${degStr(e.gamma)}[deg]`;
+    return `<tr><td>${name}</td><td>${degShow(e.alpha)}</td><td>${degShow(e.beta)}</td><td>${degShow(e.gamma)}</td>` +
+      `<td><button type="button" data-copy="${copy}">Copy</button></td></tr>`;
+  };
+  const ax = c.d3.axes;
+  document.getElementById('euler').innerHTML =
+    '<table class="euler-table"><thead><tr><th>Model</th><th>α</th><th>β</th><th>γ</th><th></th></tr></thead><tbody>' +
+    row('3D: x = SAW, z = surface normal', c.d3) + row('2D: x = SAW, y = surface normal', c.d2) +
+    '</tbody></table><ul class="euler-notes">' +
+    `<li>Crystal axes in the 3D global axes: X = ${vecShow(ax.X)}, Y = ${vecShow(ax.Y)}, Z = ${vecShow(ax.Z)}.</li>` +
+    `<li>Surface normal n = ${vecShow(o.A[2])} and SAW direction ${vecShow(o.A[0])}, in crystal axes.</li>` +
+    '<li>The normal points out of the chip; the substrate lies below the top surface. In 2D, z = x × y.</li>' +
+    '<li>In COMSOL: Definitions › Coordinate Systems › Rotated System (Euler angles, Z-X-Z). Select it as the coordinate system of the piezoelectric material, whose data stay in crystal axes. Copy gives the angles in COMSOL syntax.</li>' +
+    '<li>COMSOL\'s 128°Y-X example uses (0, −38°, 0) in 3D and (0, −128°, 0) in 2D. The opposite face gives the same SAW velocity and coupling.</li>' +
+    `<li>Euler input on this page (λ, μ, θ): (${degShow(te.lambda)}, ${degShow(te.mu)}, ${degShow(te.theta)}).</li></ul>`;
+}
+
+// ---------------------------------------------------------------------------
 // Notes
 function updateNotes(s) {
   const pr = PRESETS[s.cut];
@@ -555,6 +591,7 @@ function update() {
   }
   toHash(s);
   updateNotes(s);
+  updateOrientation();
   updateSubstrateSweep(s);
   if (!ok) { showMsg('Some inputs are out of range (marked in red). Results show the last valid inputs.'); return; }
   let p, res;
@@ -629,6 +666,7 @@ function rerenderAll() {
   render(last.s, last.p, last.res);
   renderNpSweep(last.p);
   renderSubstrateSweep();
+  updateOrientation();
 }
 
 function init() {
@@ -659,6 +697,13 @@ function init() {
     try { await navigator.clipboard.writeText(location.href); b.textContent = 'Link copied'; }
     catch { b.textContent = 'Copy failed'; }
     setTimeout(() => { b.textContent = 'Copy link'; }, 1500);
+  });
+  document.getElementById('euler').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-copy]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; }
+    catch { b.textContent = 'Copy failed'; }
+    setTimeout(() => { b.textContent = 'Copy'; }, 1500);
   });
   document.getElementById('btn-reset').addEventListener('click', () => {
     writeForm(defaults());

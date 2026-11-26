@@ -22,6 +22,7 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 - **Download .s2p** writes a Touchstone file referenced to Z₀ at the probe tips, for direct comparison with calibrated VNA data.
 - **Download CSV** writes S-parameters, port impedances and IDT admittance.
 - **Angle-sweep charts:** click a point to move to that orientation.
+- **Orientation view:** drag to rotate the chip; **Copy** gives the COMSOL Euler angles in COMSOL syntax.
 
 ## What is computed
 
@@ -29,6 +30,8 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 |---|---|
 | v₀, vₘ, K², ε∞, power-flow angle | Substrate values for the chosen cut and direction (partial-wave solver) |
 | Angle sweep | v₀, vₘ, K², power-flow angle and Cs over 0–180° of the cut's angle family |
+| Orientation view | 3D chip with the crystal axes X, Y, Z, the SAW direction and the power-flow direction |
+| COMSOL Euler angles | Rotated System angles (Z-X-Z) for 3D and 2D models, and the crystal axes in the model axes |
 | S11, S21, S22 | At the probe tips, both ports referenced to Z₀ |
 | Insertion loss at f₀ | −S21 at f₀; also the single-transit value (no triple-transit echo) |
 | Peak S21, 3-dB bandwidth | From the S21 trace |
@@ -50,6 +53,17 @@ Inputs live in the left panel. Every change updates the plots and the page URL, 
 | Y-cut | ψ measured from X toward Z |
 | Z-cut | ψ measured from X toward Y |
 | Euler angles (λ, μ, θ) | ZXZ convention; 128°Y-X = (0°, 38°, 0°) |
+
+The surface normal points out of the chip. Y-Z is (0°, −90°, −90°) on the +Y face and (0°, 90°, 90°) on the −Y face; opposite faces give the same SAW velocity and coupling.
+
+**COMSOL Euler angles.** COMSOL's Rotated System (Euler angles, Z-X-Z, intrinsic) maps crystal-axis components to the model's global axes. The page gives (α, β, γ) for two model frames; select the Rotated System as the coordinate system of the piezoelectric material, whose data stay in crystal axes.
+
+| Model | Global axes | 128°Y-X |
+|---|---|---|
+| 3D | x = SAW direction, z = surface normal (out of the chip), y = z × x | (0°, −38°, 0°) |
+| 2D | x = SAW direction, y = surface normal (out of the chip), z = x × y | (0°, −128°, 0°) |
+
+Both 128°Y-X values match COMSOL's application example *Euler Angle Rotation in Surface Acoustic Wave Modeling*. In this tool's (λ, μ, θ), the 3D angles are (α, β, γ) = (−θ, −μ, −λ).
 
 **Method.** The substrate is a piezoelectric half-space; the device axes have x₁ along propagation and x₃ normal to the surface.
 
@@ -142,6 +156,11 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - The Z-cut 3-fold and mirror symmetries hold. The power-flow angle is zero where mirror symmetry requires it, and it agrees with the slope of v₀(ψ).
 - Regression tests cover the rotated Y-cuts where partial waves coalesce, and an X-cut range with a second metallized-surface root.
 
+**Euler angles.**
+
+- The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
+- For 200 random orientations, plus β = 0° and 180°, the COMSOL and (λ, μ, θ) angles rebuild the rotation matrix.
+
 **Published data.** Data sets are JSON files in `tests/data/`, each with its source, whether it is measured or simulated, and its angle convention; `tests/published.test.mjs` compares them with the solver.
 
 | Data set | Kind | Agreement |
@@ -164,6 +183,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 ## References
 
 - A. S. Andrushchak, B. G. Mytsyk, H. P. Laba, O. V. Yurkevych, I. M. Solskii, A. V. Kityk, B. Sahraoui, "Complete sets of elastic constants and photoelastic coefficients of pure and MgO-doped lithium niobate crystals at room temperature," *J. Appl. Phys.* 106, 073510 (2009).
+- COMSOL, *Euler Angle Rotation in Surface Acoustic Wave Modeling*, Application Gallery 69281, <https://doc.comsol.com/6.4/doc/com.comsol.help.models.mems.saw_euler_angle_rotation/saw_euler_angle_rotation.html>.
 - S. Datta, *Surface Acoustic Wave Devices*, Prentice-Hall, 1986.
 - T. Kawada, M. Kawaguchi, H. Matsumoto, M. Hayashi, "Model calculations of the strains associated with surface acoustic waves," arXiv:2504.12752 (2025).
 - J. Kushibiki, I. Takanaga, M. Arakawa, T. Sannomiya, "Accurate measurements of the acoustical physical constants of LiNbO₃ and LiTaO₃ single crystals," *IEEE Trans. Ultrason. Ferroelectr. Freq. Control* 46, 1315–1323 (1999).
@@ -184,6 +204,8 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/saw/tensor.js` | Tensors, rotations, Euler angles |
 | `src/saw/solver.js` | Partial-wave solver |
 | `src/saw/substrate.js` | Cached solver calls and angle sweeps |
+| `src/saw/euler.js` | COMSOL and (λ, μ, θ) Euler angles of an orientation |
+| `src/view3d.js` | 3D chip and axes view (Plotly) |
 | `src/saw/worker.js` | Web Worker for angle sweeps |
 | `src/pads.js` | Pad-capacitance estimate |
 | `src/complex.js` | Complex arithmetic |

@@ -48,7 +48,8 @@ export function axesFromNP(n, p) {
 /**
  * Rotation from Euler angles (deg), ZXZ convention as used for SAW cuts:
  * rotate by lambda about Z, then mu about the new X, then theta about the new Z.
- * Example: 128°Y-X LiNbO3 = (0, 38, 0); Y-Z = (0, 90, 90).
+ * Example: 128°Y-X LiNbO3 = (0, 38, 0); Y-Z = (0, -90, -90) on the +Y face, or (0, 90, 90)
+ * on the -Y face (x3 points out of the substrate; both faces give the same SAW values).
  */
 export function axesFromEuler(lambda, mu, theta) {
   const r = Math.PI / 180;
