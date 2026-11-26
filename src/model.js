@@ -9,12 +9,23 @@ import { idtAdmittance, apertureForReZ, apertureForAbsZ, npOptimum, fingerResist
 import { seriesZ, shuntY, bridgeY, yToS, zFromGamma } from './network.js';
 import { orientation, csDatta } from './materials.js';
 import { padCapacitance } from './pads.js';
+import { solveSubstrate } from './saw/substrate.js';
 
-/** Fill in estimated values: Cs from the cut (if null), Cpad from pad geometry (if null). */
+/**
+ * Fill in substrate and pad values.
+ * - substrate = 'solver': v, K2 and Cs from the partial-wave solver for the cut
+ *   (q.sub holds the full solver result; if no SAW is found, the given values stay).
+ * - Cs still null: clamped-permittivity estimate for the cut.
+ * - Cpad null: estimate from the pad geometry.
+ */
 export function resolve(p) {
   const q = { ...p };
+  const o = orientation(q.cut, q);
+  if (q.substrate === 'solver' && o) {
+    q.sub = solveSubstrate(o);
+    if (q.sub.ok) { q.v = q.sub.v0; q.K2 = q.sub.K2; q.Cs = q.sub.Cs; }
+  }
   if (q.Cs == null) {
-    const o = orientation(q.cut, q.psi);
     if (!o) throw new Error('Cs must be given for a custom substrate');
     q.Cs = csDatta(o);
   }
@@ -23,12 +34,13 @@ export function resolve(p) {
 }
 
 /**
- * Default parameters (SI). The device values reproduce the 2024 notebook
+ * Default parameters (SI). The device values follow the 2024 notebook
  * (128°Y-X, 220 MHz, Np = 22, W = 500 um); the rest are neutral starting values.
  */
 export const DEFAULTS = {
-  cut: '128YX', psi: 0,
-  v: 3996, K2: 0.056, Cs: null, // Cs null -> use the estimate for the cut
+  cut: '128YX', psi: 0, rot: 128, e1: 0, e2: 38, e3: 0,
+  substrate: 'solver', // 'solver' or 'manual' (use v, K2, Cs below)
+  v: 3996, K2: 0.056, Cs: null, // Cs null -> clamped-permittivity estimate for the cut
   f0: 220e6, Np1: 22, Np2: 22, W: 500e-6, gap: 1000e-6,
   lossDbPerM: 0,
   Z0: 50,

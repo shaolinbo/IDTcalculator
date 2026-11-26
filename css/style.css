@@ -154,3 +154,5 @@ legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; colo
 .notes ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
 .notes li { margin: 4px 0; }
 .foot { padding: 12px 20px 20px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+.foot a { color: var(--ink-2); }
+.status { color: var(--accent); font-weight: 600; }
