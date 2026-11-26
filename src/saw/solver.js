@@ -13,8 +13,8 @@
 // length of an IDT with metallization ratio 0.5 (Cs = eps_inf).
 //
 // Units are scaled to keep all numbers O(1): c / 1e11, e / sqrt(1e11 eps0), eps / eps0.
-import { EPS0, voigt3m } from './constants.js?v=c29d6d9797';
-import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=c29d6d9797';
+import { EPS0, voigt3m } from './constants.js?v=f5cac54763';
+import { fullTensors, rotateTensor, rotateAboutNormal } from './tensor.js?v=f5cac54763';
 
 const C0 = 1e11;
 const SE = Math.sqrt(C0 * EPS0);
@@ -154,7 +154,7 @@ export function polyRoots(c) {
 // Small complex linear algebra (4x4, separate re/im arrays, row-major)
 
 /** k null vectors of a (nearly) rank-(4-k) complex 4x4 matrix, by complete pivoting. */
-function nullVectors(Mr, Mi, k) {
+export function nullVectors(Mr, Mi, k) {
   const ar = Mr.slice(), ai = Mi.slice();
   const perm = [0, 1, 2, 3];
   const r = 4 - k;
@@ -211,7 +211,7 @@ function nullVectors(Mr, Mi, k) {
 }
 
 /** Determinant of a complex 4x4 (partial pivoting). Returns [re, im]. */
-function det4(Mr, Mi) {
+export function det4(Mr, Mi) {
   const ar = Mr.slice(), ai = Mi.slice();
   let dr = 1, di = 0;
   for (let s = 0; s < 4; s++) {
@@ -242,7 +242,7 @@ function det4(Mr, Mi) {
 }
 
 /** Solve the complex 4x4 system M x = (0, 0, 0, 1). Returns [xr, xi]. */
-function solveE4(Mr, Mi) {
+export function solveE4(Mr, Mi) {
   const ar = Mr.slice(), ai = Mi.slice();
   const br = new Float64Array([0, 0, 0, 1]), bi = new Float64Array(4);
   for (let s = 0; s < 4; s++) {
@@ -309,39 +309,88 @@ export function isoFilm({ rho, E, nu }) {
   return { rho: rho / C0, lam: (E * nu) / ((1 + nu) * (1 - 2 * nu)) / C0, mu: E / (2 * (1 + nu)) / C0 };
 }
 
-const mul6 = (P, Q) => {
-  const out = new Float64Array(36);
-  for (let i = 0; i < 6; i++) for (let k = 0; k < 6; k++) {
-    const p = P[i * 6 + k];
-    if (p !== 0) for (let j = 0; j < 6; j++) out[i * 6 + j] += p * Q[k * 6 + j];
+/** Product of two real n x n matrices (flat, row-major). */
+export function matMul(P, Q, n) {
+  const out = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) {
+    const p = P[i * n + k];
+    if (p !== 0) for (let j = 0; j < n; j++) out[i * n + j] += p * Q[k * n + j];
   }
   return out;
-};
+}
 
-/** exp(i X) for a real 6x6 X (flat), as [re, im]; scaling and squaring with a Taylor series. */
-export function expmI(X) {
+/** exp(i X) for a real n x n X (flat), as [re, im]; scaling and squaring with a Taylor series. */
+export function expmIn(X, n) {
   let nrm = 0;
-  for (let i = 0; i < 6; i++) { let r = 0; for (let j = 0; j < 6; j++) r += Math.abs(X[i * 6 + j]); nrm = Math.max(nrm, r); }
+  for (let i = 0; i < n; i++) { let r = 0; for (let j = 0; j < n; j++) r += Math.abs(X[i * n + j]); nrm = Math.max(nrm, r); }
   const s = Math.max(0, Math.ceil(Math.log2(nrm / 0.25)));
   const Y = X.map((x) => x / 2 ** s);
-  let Er = new Float64Array(36), Ei = new Float64Array(36);
-  for (let i = 0; i < 6; i++) Er[i * 7] = 1;
-  let T = new Float64Array(36);
-  for (let i = 0; i < 6; i++) T[i * 7] = 1;
-  for (let n = 1; n <= 30; n++) {
-    T = mul6(T, Y).map((x) => x / n); // Y^n / n!
-    const sgn = n % 4 < 2 ? 1 : -1; // i^n = 1, i, -1, -i
-    const tgt = n % 2 === 0 ? Er : Ei;
+  let Er = new Float64Array(n * n), Ei = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) Er[i * (n + 1)] = 1;
+  let T = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) T[i * (n + 1)] = 1;
+  for (let m = 1; m <= 30; m++) {
+    T = matMul(T, Y, n).map((x) => x / m); // Y^m / m!
+    const sgn = m % 4 < 2 ? 1 : -1; // i^m = 1, i, -1, -i
+    const tgt = m % 2 === 0 ? Er : Ei;
     let big = 0;
-    for (let q = 0; q < 36; q++) { tgt[q] += sgn * T[q]; big = Math.max(big, Math.abs(T[q])); }
+    for (let q = 0; q < n * n; q++) { tgt[q] += sgn * T[q]; big = Math.max(big, Math.abs(T[q])); }
     if (big < 1e-18) break;
   }
   for (let k = 0; k < s; k++) {
-    const rr = mul6(Er, Er), ii = mul6(Ei, Ei), ri = mul6(Er, Ei), ir = mul6(Ei, Er);
+    const rr = matMul(Er, Er, n), ii = matMul(Ei, Ei, n), ri = matMul(Er, Ei, n), ir = matMul(Ei, Er, n);
     Er = rr.map((x, q) => x - ii[q]);
     Ei = ri.map((x, q) => x + ir[q]);
   }
   return [Er, Ei];
+}
+
+/** exp(i X) for a real 6x6 X (flat), as [re, im]. */
+export const expmI = (X) => expmIn(X, 6);
+
+/**
+ * Stroh matrix N (8x8, real) of a material at velocity v (m/s): for fields
+ * exp(i k (x1 + beta x3 - v t)) the state eta = (u1, u2, u3, phi, t1, t2, t3, D3) obeys
+ * d(eta)/d(k x3) = i N eta, with t_j = T3j / (i k C0) and D3 scaled as in the boundary rows.
+ * With Q = Gamma(beta = 0) - rho v^2 J, R^T and T from the boundary rows (b = (R^T + beta T) a):
+ *   N = [[-T^-1 R^T, T^-1], [R T^-1 R^T - Q, -R T^-1]].
+ */
+export function strohN(ctx, v) {
+  const { G, B, rho } = ctx;
+  const Q = new Float64Array(16), Rt = new Float64Array(16), T = new Float64Array(16);
+  for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) {
+    Q[j * 4 + k] = G[(j * 4 + k) * 3] - (j === k && j < 3 ? rho * v * v : 0);
+    Rt[j * 4 + k] = B[(j * 4 + k) * 2];
+    T[j * 4 + k] = B[(j * 4 + k) * 2 + 1];
+  }
+  const Ti = inv4(T);
+  const R = new Float64Array(16);
+  for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) R[j * 4 + k] = Rt[k * 4 + j];
+  const TiRt = matMul(Ti, Rt, 4), RTi = matMul(R, Ti, 4), RTiRt = matMul(R, TiRt, 4);
+  const N = new Float64Array(64);
+  for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) {
+    N[j * 8 + k] = -TiRt[j * 4 + k];
+    N[j * 8 + 4 + k] = Ti[j * 4 + k];
+    N[(4 + j) * 8 + k] = RTiRt[j * 4 + k] - Q[j * 4 + k];
+    N[(4 + j) * 8 + 4 + k] = -RTi[j * 4 + k];
+  }
+  return N;
+}
+
+/** Inverse of a real 4x4 matrix (Gauss-Jordan with partial pivoting). */
+function inv4(Ain) {
+  const A = Array.from({ length: 4 }, (_, i) => [...Ain.slice(i * 4, i * 4 + 4), ...[0, 1, 2, 3].map((j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < 4; c++) {
+    let p = c;
+    for (let r = c + 1; r < 4; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    const d = A[c][c];
+    for (let j = 0; j < 8; j++) A[c][j] /= d;
+    for (let r = 0; r < 4; r++) if (r !== c) { const f = A[r][c]; if (f) for (let j = 0; j < 8; j++) A[r][j] -= f * A[c][j]; }
+  }
+  const out = new Float64Array(16);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) out[i * 4 + j] = A[i][4 + j];
+  return out;
 }
 
 /** Transfer matrix exp(i R kh) of the film at phase velocity v (m/s). */
@@ -360,11 +409,11 @@ function filmTransfer(film, v, kh) {
 }
 
 /**
- * Boundary determinants (columns normalized, so |det| is independent of phase choices)
- * and, optionally, eps_eff(v)/eps0 of the traction-free surface. With a film
- * ({ rho, lam, mu } scaled, and kh), also dFilm for the film-covered surface.
+ * The four partial waves that decay into the substrate (x3 < 0) at velocity v: their
+ * surface states eta = (u1, u2, u3, phi, t1, t2, t3, D3) as { re, im } (Float64Array(8)),
+ * and |det V| of the eigenvectors (V columns = (u, phi)). ok = false above the bulk limit.
  */
-export function evalAt(ctx, v, wantEps = false, film = null) {
+export function partialWaves(ctx, v) {
   const { coef, g } = detPoly(ctx, v);
   const { zr, zi } = polyRoots(coef);
   const sel = [];
@@ -401,14 +450,12 @@ export function evalAt(ctx, v, wantEps = false, film = null) {
     grp.forEach((q, i) => { vecs[q] = nv[i]; done[q] = true; });
   }
 
-  // Boundary matrices: rows t1, t2, t3, then (open) D3 + i phi or (short) phi.
+  // Surface states: u and phi from the eigenvector, t and D3 from the boundary rows.
   const B = ctx.B;
-  const Or = new Float64Array(16), Oi = new Float64Array(16);
-  const Sr = new Float64Array(16), Si = new Float64Array(16);
-  const Dr = new Float64Array(4), Di = new Float64Array(4);
-  for (let col = 0; col < 4; col++) {
-    const [br, bi] = betas[col];
+  const states = betas.map(([br, bi], col) => {
     const [ur, ui] = vecs[col];
+    const re = new Float64Array(8), im = new Float64Array(8);
+    for (let k = 0; k < 4; k++) { re[k] = ur[k]; im[k] = ui[k]; }
     for (let row = 0; row < 4; row++) {
       let sr = 0, si = 0;
       for (let k = 0; k < 4; k++) {
@@ -417,16 +464,10 @@ export function evalAt(ctx, v, wantEps = false, film = null) {
         sr += cr * ur[k] - ci * ui[k];
         si += cr * ui[k] + ci * ur[k];
       }
-      if (row < 3) {
-        Or[row * 4 + col] = sr; Oi[row * 4 + col] = si;
-        Sr[row * 4 + col] = sr; Si[row * 4 + col] = si;
-      } else {
-        Dr[col] = sr; Di[col] = si;
-        Or[12 + col] = sr - ui[3]; Oi[12 + col] = si + ur[3]; // D3 + i*phi
-        Sr[12 + col] = ur[3]; Si[12 + col] = ui[3]; // phi
-      }
+      re[4 + row] = sr; im[4 + row] = si;
     }
-  }
+    return { re, im };
+  });
   // Normalize by the determinant of the eigenvector matrix: when two partial waves
   // coalesce, two columns of the boundary matrix become parallel and |det B| -> 0
   // without a SAW; |det V| vanishes at the same rate, so the ratio stays finite.
@@ -434,7 +475,32 @@ export function evalAt(ctx, v, wantEps = false, film = null) {
   for (let col = 0; col < 4; col++) for (let k = 0; k < 4; k++) {
     Vr[k * 4 + col] = vecs[col][0][k]; Vi[k * 4 + col] = vecs[col][1][k];
   }
-  const dV = Math.hypot(...det4(Vr, Vi));
+  return { ok: true, betas, vecs, states, dV: Math.hypot(...det4(Vr, Vi)) };
+}
+
+/**
+ * Boundary determinants (columns normalized, so |det| is independent of phase choices)
+ * and, optionally, eps_eff(v)/eps0 of the traction-free surface. With a film
+ * ({ rho, lam, mu } scaled, and kh), also dFilm for the film-covered surface.
+ */
+export function evalAt(ctx, v, wantEps = false, film = null) {
+  const pw = partialWaves(ctx, v);
+  if (!pw.ok) return { ok: false };
+  const { vecs, states, dV } = pw;
+  // Boundary matrices: rows t1, t2, t3, then (open) D3 + i phi or (short) phi.
+  const Or = new Float64Array(16), Oi = new Float64Array(16);
+  const Sr = new Float64Array(16), Si = new Float64Array(16);
+  const Dr = new Float64Array(4), Di = new Float64Array(4);
+  for (let col = 0; col < 4; col++) {
+    const { re, im } = states[col];
+    for (let row = 0; row < 3; row++) {
+      Or[row * 4 + col] = re[4 + row]; Oi[row * 4 + col] = im[4 + row];
+      Sr[row * 4 + col] = re[4 + row]; Si[row * 4 + col] = im[4 + row];
+    }
+    Dr[col] = re[7]; Di[col] = im[7];
+    Or[12 + col] = re[7] - im[3]; Oi[12 + col] = im[7] + re[3]; // D3 + i*phi
+    Sr[12 + col] = re[3]; Si[12 + col] = im[3]; // phi
+  }
   const dO = det4(Or, Oi), dS = det4(Sr, Si);
   const out = { ok: true, dOpen: Math.hypot(dO[0], dO[1]) / dV, dShort: Math.hypot(dS[0], dS[1]) / dV };
   if (film) {
@@ -481,7 +547,7 @@ export function bulkLimit(ctx, lo = 1, hi = 2e4) {
 }
 
 /** Golden-section minimum of f on [a, b]. */
-function goldenMin(f, a, b, relTol = 1e-12) {
+export function goldenMin(f, a, b, relTol = 1e-12) {
   const gr = (Math.sqrt(5) - 1) / 2;
   let x1 = b - gr * (b - a), x2 = a + gr * (b - a);
   let f1 = f(x1), f2 = f(x2);
@@ -498,7 +564,7 @@ function goldenMin(f, a, b, relTol = 1e-12) {
  * orientations have a second surface wave just below the bulk limit (for example a
  * shear-horizontal wave bound only by metallization); the Rayleigh-type wave is the slowest.
  */
-function rootFromGrid(vs, fs, f) {
+export function rootFromGrid(vs, fs, f) {
   const n = vs.length;
   const scale = [...fs].filter(Number.isFinite).sort((a, b) => a - b)[Math.floor(n / 2)];
   for (let i = 0; i < n; i++) {

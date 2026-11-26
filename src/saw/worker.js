@@ -1,5 +1,5 @@
 // Web Worker: runs angle sweeps off the main thread.
-import { sweep, gratingParams } from './substrate.js?v=c29d6d9797';
+import { sweep, gratingParams } from './substrate.js?v=f5cac54763';
 
 self.onmessage = (ev) => {
   if (ev.data.kind === 'grating') {

@@ -1,5 +1,5 @@
 // Two-port network helpers. A 2x2 complex matrix is [[m11, m12], [m21, m22]].
-import { cx, add, sub, mul, div, scale, ONE } from './complex.js?v=c29d6d9797';
+import { cx, add, sub, mul, div, scale, ONE } from './complex.js?v=f5cac54763';
 
 export function inv2([[a, b], [c, d]]) {
   const det = sub(mul(a, d), mul(b, c));
