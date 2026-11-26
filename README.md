@@ -2,11 +2,13 @@
 
 A browser tool for surface-acoustic-wave interdigital transducers (IDTs) on lithium niobate. It computes the IDT impedance and the S-parameters of a two-IDT delay line between 50 Ω probe ports, including pads, leads, finger resistance and optional tuning inductors. Everything runs in the browser; there is no server.
 
+**Live: <https://shaolinbo.github.io/IDTcalculator/>**
+
 **Status: Phase 1 (v0.1).** Impulse model, Y-Z and 128°Y-X presets, Cs estimate for any cut. See [Roadmap](#roadmap).
 
 ## Use
 
-- **Online:** enable GitHub Pages for this repository (Settings → Pages → Deploy from branch, `main`, `/ (root)`), then open the Pages URL.
+- **Online:** open <https://shaolinbo.github.io/IDTcalculator/>. It is served by GitHub Pages from the `main` branch, so each push updates it.
 - **Locally:** ES modules need an HTTP server, so `index.html` cannot be opened as a file.
 
   ```
@@ -117,3 +119,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/pads.js` | Pad-capacitance estimate |
 | `src/complex.js` | Complex arithmetic |
 | `tests/` | Node tests |
+
+## License
+
+GNU General Public License v3.0. See [LICENSE](LICENSE).
