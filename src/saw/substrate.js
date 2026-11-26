@@ -1,7 +1,8 @@
 // Substrate values for a cut, from the partial-wave solver, and angle sweeps.
-import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=a74496df0a';
-import { crystal, solveOrientation, prepare, bulkLimit, isoFilm, filmVelocity } from './solver.js?v=a74496df0a';
-import { orientation } from '../materials.js?v=a74496df0a';
+import { CONSTANT_SETS, DEFAULT_SET } from './constants.js?v=f4a790d683';
+import { crystal, solveOrientation, prepare, bulkLimit, isoFilm, filmVelocity } from './solver.js?v=f4a790d683';
+import { gratingCOM } from './grating.js?v=f4a790d683';
+import { orientation } from '../materials.js?v=f4a790d683';
 
 const crystals = new Map();
 const cache = new Map();
@@ -98,4 +99,34 @@ export function electrodeLoading(orient, { set, metal, h, f0, v0, eta = 0.5 }) {
   }
   hl = (h * f0) / vIdt;
   return { vIdt, vFilm: filmSAW(orient, set, metal, hl), hOverLambda: hl, dv: vIdt / v0 - 1, eta };
+}
+
+// ---------------------------------------------------------------------------
+// COM parameters from a periodic-grating finite-element unit cell
+
+const gratingCache = new Map();
+
+/**
+ * Velocity under the IDT and reflection per electrode from the shorted and open grating
+ * (grating.js) for metal { density, E, nu }, thickness h (m), design frequency f0 and
+ * metallization ratio eta. h/lambda is solved together with lambda = v / f0, starting from
+ * the electrodeLoading estimate. Returns gratingCOM's result plus hOverLambda, v0, dv.
+ */
+export function gratingParams(orient, { set, metal, h, f0, eta = 0.5 }) {
+  const key = `${keyA(orient, set)}|${metal.density},${metal.E},${metal.nu}|${h},${f0},${eta}`;
+  if (gratingCache.has(key)) return gratingCache.get(key);
+  const m = CONSTANT_SETS[CONSTANT_SETS[set] ? set : DEFAULT_SET].m;
+  const v0 = solveSubstrate(orient, { set, pfa: false }).v0;
+  const est = electrodeLoading(orient, { set, metal, h, f0, v0, eta });
+  let vGuess = est ? est.vIdt : v0, hl = (h * f0) / vGuess, g = null;
+  for (let it = 0; it < 4; it++) {
+    g = gratingCOM(m, orient.A, metal, { eta, hOverLambda: hl, vGuess });
+    const next = (h * f0) / g.v;
+    if (Math.abs(next - hl) <= 0.02 * Math.max(hl, 1e-9)) break; // r_s, v change little with h/lambda
+    hl = next; vGuess = g.v;
+  }
+  const out = { ...g, hOverLambda: hl, v0, dv: g.v / v0 - 1, estimate: est?.vIdt ?? null };
+  if (gratingCache.size > 50) gratingCache.clear();
+  gratingCache.set(key, out);
+  return out;
 }

@@ -1,12 +1,12 @@
 // Page logic: form <-> parameters, URL state, plots, export.
-import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=a74496df0a';
-import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=a74496df0a';
-import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=a74496df0a';
-import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=a74496df0a';
-import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=a74496df0a';
-import { comsolEuler, toolEuler } from './saw/euler.js?v=a74496df0a';
-import { chipFigure } from './view3d.js?v=a74496df0a';
-import { dB, abs } from './complex.js?v=a74496df0a';
+import { resolve, simulate, sweepNp, toTouchstone, toCSV } from './model.js?v=f4a790d683';
+import { PRESETS, METALS, orientation, csDatta } from './materials.js?v=f4a790d683';
+import { apertureForReZ, apertureForAbsZ } from './impulse.js?v=f4a790d683';
+import { solveSubstrate, electrodeLoading, filmSAW } from './saw/substrate.js?v=f4a790d683';
+import { CONSTANT_SETS, DEFAULT_SET } from './saw/constants.js?v=f4a790d683';
+import { comsolEuler, toolEuler } from './saw/euler.js?v=f4a790d683';
+import { chipFigure } from './view3d.js?v=f4a790d683';
+import { dB, abs } from './complex.js?v=f4a790d683';
 
 // ---------------------------------------------------------------------------
 // Field definitions. Display value * si = SI value.
@@ -21,9 +21,13 @@ const GROUPS = [
 
 const usesAngle = (key) => (s) => (PRESETS[s.cut]?.angles ?? []).includes(key);
 const usesSolver = (s) => s.cut !== 'custom' && s.mode === 'solver' && !!subState?.res?.ok;
-const massOn = (s) => s.massLoad && s.cut !== 'custom';
+const gratingOn = (s) => s.idtModel === 'com' && s.comSrc === 'grating' && s.cut !== 'custom';
+const usesGrating = (s) => gratingOn(s) && !!gratingState.result;
+const massOn = (s) => s.massLoad && s.cut !== 'custom' && !gratingOn(s);
+const needMetal = (s) => massOn(s) || gratingOn(s);
 const usesLoading = (s) => massOn(s) && !!loadState;
 let loadState = null; // electrodeLoading() result when "Include electrode mass" is on
+let gratingState = { key: null, result: null, status: '' }; // periodic-grating FEM (COM parameters)
 const metalOf = (s) => ({ density: s.mDens * 1000, E: s.mE * 1e9, nu: s.mNu });
 
 const FIELDS = [
@@ -49,27 +53,30 @@ const FIELDS = [
   { g: 'idt', key: 'Np2', label: 'Finger pairs, IDT 2', type: 'int', si: 1, def: 22, step: 1, min: 1, zeroOk: true },
   { g: 'idt', key: 'idtModel', label: 'IDT model', type: 'select', def: 'impulse',
     options: [['impulse', 'Impulse (no electrode reflection)'], ['com', 'Coupling of modes (COM)']] },
+  { g: 'idt', key: 'comSrc', label: 'COM parameters', type: 'select', def: 'grating',
+    options: [['grating', 'Computed (periodic grating FEM)'], ['entered', 'Entered r_s and Δv/v₀']],
+    show: (s) => s.idtModel === 'com' && s.cut !== 'custom' },
   { g: 'idt', key: 'rs', label: 'Reflection per electrode r_s', unit: '%', si: 0.01, def: 0, step: 0.1, min: -20, max: 20, zeroOk: true,
-    show: (s) => s.idtModel === 'com' },
+    show: (s) => s.idtModel === 'com', disabled: gratingOn },
   { g: 'idt', key: 'W', label: 'Aperture W', unit: 'µm', si: 1e-6, def: 500, step: 1, min: 0 },
   { g: 'idt', key: 'dvIdt', label: 'Velocity shift under IDTs Δv/v₀', unit: '%', si: 0.01, def: 0, step: 0.1, min: -30, max: 30, zeroOk: true,
-    disabled: (s) => usesLoading(s) },
+    disabled: (s) => usesLoading(s) || gratingOn(s) },
   { g: 'idt', key: 'gap', label: 'Gap between IDTs', unit: 'µm', si: 1e-6, def: 1000, step: 10, min: 0, zeroOk: true },
   { g: 'idt', key: 'loss', label: 'Propagation loss', unit: 'dB/mm', si: 1000, def: 0, step: 0.01, min: 0, zeroOk: true },
 
   { g: 'el', key: 'fingerR', label: 'Include finger resistance', type: 'check', def: true },
   { g: 'el', key: 'massLoad', label: 'Include electrode mass (metal film model)', type: 'check', def: false,
-    show: (s) => s.cut !== 'custom' },
+    show: (s) => s.cut !== 'custom' && !gratingOn(s) },
   { g: 'el', key: 'metal', label: 'Metal', type: 'select', def: 'Al',
     options: [...Object.entries(METALS).map(([k, m]) => [k, m.label]), ['other', 'Other']],
-    show: (s) => s.fingerR || massOn(s) },
+    show: (s) => s.fingerR || needMetal(s) },
   { g: 'el', key: 'h', label: 'Metal thickness h', unit: 'nm', si: 1e-9, def: 100, step: 5, min: 0,
-    show: (s) => s.fingerR || massOn(s) },
+    show: (s) => s.fingerR || needMetal(s) },
   { g: 'el', key: 'rho', label: 'Resistivity ρ', unit: 'µΩ·cm', si: 1e-8, def: 2.65, step: 0.01, min: 0,
     show: (s) => s.fingerR },
-  { g: 'el', key: 'mDens', label: 'Metal density', unit: 'g/cm³', si: 1000, def: 2.699, step: 0.01, min: 0, show: massOn },
-  { g: 'el', key: 'mE', label: "Young's modulus E", unit: 'GPa', si: 1e9, def: 70, step: 1, min: 0, show: massOn },
-  { g: 'el', key: 'mNu', label: 'Poisson ratio ν', unit: '', si: 1, def: 0.35, step: 0.01, min: 0, max: 0.49, zeroOk: true, show: massOn },
+  { g: 'el', key: 'mDens', label: 'Metal density', unit: 'g/cm³', si: 1000, def: 2.699, step: 0.01, min: 0, show: needMetal },
+  { g: 'el', key: 'mE', label: "Young's modulus E", unit: 'GPa', si: 1e9, def: 70, step: 1, min: 0, show: needMetal },
+  { g: 'el', key: 'mNu', label: 'Poisson ratio ν', unit: '', si: 1, def: 0.35, step: 0.01, min: 0, max: 0.49, zeroOk: true, show: needMetal },
 
   { g: 'port', key: 'Z0', label: 'Port impedance Z₀', unit: 'Ω', si: 1, def: 50, step: 1, min: 0 },
   { g: 'port', key: 'pads', label: 'Include pads and leads', type: 'check', def: true },
@@ -240,6 +247,37 @@ function computeSubstrate(s) {
   const finiteAngles = Object.values(angles).every(Number.isFinite);
   if (!orient || !finiteAngles) return { orient: null, res: null };
   return { orient, res: solveSubstrate(orient, { set: s.consts }) };
+}
+
+// Periodic-grating FEM in its own worker (about 1–4 s); a newer request cancels an older one.
+let gratingWorker = null;
+function requestGrating(s) {
+  if (!gratingOn(s) || !subState?.res?.ok) return;
+  const metal = metalOf(s), h = s.h * 1e-9, f0 = s.f0 * 1e6;
+  if (!(h >= 0 && f0 > 0 && metal.density > 0 && metal.E > 0 && metal.nu >= 0 && metal.nu < 0.5)) {
+    gratingState = { key: null, result: null, status: 'Needs valid metal values, thickness and f₀.' };
+    return;
+  }
+  const key = JSON.stringify([s.consts, subState.orient.A, metal, h, f0]);
+  if (gratingState.key === key) return; // done or running
+  if (gratingWorker && gratingState.status === 'pending') { gratingWorker.terminate(); gratingWorker = null; }
+  gratingState = { key, result: null, status: 'pending' };
+  try {
+    if (!gratingWorker) {
+      gratingWorker = new Worker(new URL('./saw/worker.js?v=f4a790d683', import.meta.url), { type: 'module' });
+      gratingWorker.onmessage = (ev) => {
+        const d = ev.data;
+        if (d.kind !== 'grating' || d.key !== gratingState.key) return;
+        gratingState = d.error ? { key: d.key, result: null, status: `Grating calculation failed: ${d.error}` }
+          : { key: d.key, result: d.result, status: 'done' };
+        update();
+      };
+      gratingWorker.onerror = () => { gratingState = { key: null, result: null, status: 'Background thread unavailable.' }; gratingWorker = null; };
+    }
+    gratingWorker.postMessage({ kind: 'grating', key, orient: { A: subState.orient.A }, set: s.consts, metal, h, f0, eta: 0.5 });
+  } catch {
+    gratingState = { key: null, result: null, status: 'Background thread unavailable.' };
+  }
 }
 
 /** Velocity under the IDTs from the metal film model, when "Include electrode mass" is on. */
@@ -413,9 +451,10 @@ function render(s, p, res) {
     ...(sub ? [['Slowest bulk-wave limit', `${nf(sub.vlim, 1)} m/s`]] : []),
     ['Electrode pitch p = λ/2', `${nf(S.pitch * 1e6, 3)} µm`],
     ['Wavelength under the IDTs λ / finger width λ/4', `${nf(S.lambda * 1e6, 3)} / ${nf(S.a * 1e6, 3)} µm`],
-    ['Velocity under the IDTs (Δv/v₀)', `${nf(S.vIdt, 1)} m/s (${minus(nf((p.dvIdt ?? 0) * 100, 3))} %, ${usesLoading(s) ? 'computed' : 'entered'})`],
+    ['Velocity under the IDTs (Δv/v₀)', `${nf(S.vIdt, 1)} m/s (${minus(nf((p.dvIdt ?? 0) * 100, 3))} %, ${usesGrating(s) ? 'grating FEM' : usesLoading(s) ? 'film estimate' : 'entered'})`],
     ...(usesLoading(s) ? [
       ['Metal thickness h/λ', `${nf(loadState.hOverLambda * 100, 3)} %`],
+      ['Velocity under a continuous metal film (shorted, no mass loading) = vₘ', `${nf(sub.vm, 1)} m/s`],
       ['Velocity under a continuous metal film (shorted, mass-loaded)', `${nf(loadState.vFilm, 1)} m/s`],
       ['Under the IDTs: v₀ + η (v_film − v₀), η = 0.5', `${nf(loadState.vIdt, 1)} m/s (solver v₀ = ${nf(sub.v0, 1)} m/s)`],
     ] : []),
@@ -429,6 +468,12 @@ function render(s, p, res) {
       ['Reflection per electrode r_s / κ = r_s/p', `${minus(nf(p.rs * 100, 3))} % / ${minus(nf(p.rs / S.pitch, 1))} m⁻¹`],
       ['Stopband of the grating, f₀(1 ± |r_s|/π)', `${nf(p.f0 * (1 - Math.abs(p.rs) / Math.PI) / 1e6, 3)} – ${nf(p.f0 * (1 + Math.abs(p.rs) / Math.PI) / 1e6, 3)} MHz`],
       ['Stopband edge that couples to the IDT', p.rs < 0 ? 'lower' : p.rs > 0 ? 'upper' : '–'],
+      ...(usesGrating(s) ? [
+        ['Grating FEM: h/λ', `${nf(gratingState.result.hOverLambda * 100, 3)} %`],
+        ['Grating FEM: velocity under the IDTs p(f₋ + f₊)', `${nf(gratingState.result.v, 1)} m/s (first-order estimate ${nf(gratingState.result.estimate, 1)} m/s)`],
+        ['Shorted grating edges, f·λ', `${nf(gratingState.result.edgesShort[0], 1)} / ${nf(gratingState.result.edgesShort[1], 1)} m/s`],
+        ['Open grating edges, f·λ', `${nf(gratingState.result.edgesOpen[0], 1)} / ${nf(gratingState.result.edgesOpen[1], 1)} m/s`],
+      ] : []),
       ['N·|r_s| (IDT 1 / IDT 2)', `${nf(2 * p.Np1 * Math.abs(p.rs), 3)} / ${nf(2 * p.Np2 * Math.abs(p.rs), 3)} (2 electrodes per period)`],
     ] : []),
     ['Ct (IDT 1 / IDT 2)', `${nf(S.Ct1 * 1e12, 3)} / ${nf(S.Ct2 * 1e12, 3)} pF`],
@@ -537,7 +582,7 @@ function sweepStatus(text) { document.getElementById('sweep-status').textContent
 
 function startWorker() {
   try {
-    worker = new Worker(new URL('./saw/worker.js?v=a74496df0a', import.meta.url), { type: 'module' });
+    worker = new Worker(new URL('./saw/worker.js?v=f4a790d683', import.meta.url), { type: 'module' });
     worker.onmessage = (ev) => {
       const d = ev.data;
       if (d.id !== sweepId) return;
@@ -667,7 +712,12 @@ function updateNotes(s) {
   if (pr?.pub && (!pr.angles?.includes('psi') || s.psi === 0)) parts.push(`Published: v₀ = ${pr.pub.v0}, vₘ = ${pr.pub.vm} m/s, K² = ${nf(pr.pub.K2 * 100, 1)} % (${pr.pub.source}).`);
   notes.sub.textContent = parts.join(' ');
   notes.sub.className = warn ? 'note warn' : 'note';
+  const gs = gratingState, gr = gs.result;
   notes.com.textContent = s.idtModel !== 'com' ? ''
+    : gratingOn(s) ? (gr && gs.status === 'done'
+      ? `Grating FEM (one electrode period, shorted and open, metallization ratio 0.5, h/λ = ${nf(gr.hOverLambda * 100, 3)} %): r_s = ${minus(nf(gr.rs * 100, 3))} % (${gr.coupled} edge couples), velocity under the IDTs ${nf(gr.v, 1)} m/s (Δv/v₀ = ${minus(nf(gr.dv * 100, 3))} %). Mesh accuracy about ±0.03 % in r_s and ±2 m/s in velocity. Bulk metal constants; thin films can differ.`
+      : gs.status === 'pending' ? 'Computing r_s and the velocity under the IDTs with the grating FEM (a few seconds)… Results use the previous values until it finishes.'
+        : gs.status || '')
     : 'COM: each IDT is a P-matrix with electrode reflection r_s, transduction from K² and Cs, and the velocity under the IDTs; with r_s = 0 it equals the impulse model. '
       + 'r_s is not computed here. From the stopband edges f₋ < f₊ of a shorted grating with pitch p (for example a COMSOL periodic unit cell): |r_s| = π(f₊ − f₋)/(f₊ + f₋), and the velocity under the IDTs is p(f₊ + f₋). '
       + 'Sign: r_s < 0 when the lower edge is the one that couples to the IDT (it moves when the grating is opened), r_s > 0 for the upper edge. Metallization ratio fixed at 0.5.';
@@ -693,8 +743,15 @@ function update() {
   const s = readForm();
   subState = computeSubstrate(s);
   loadState = computeLoading(s);
+  requestGrating(s);
   showPoints = !!s.markers;
   const ok = refreshForm(s);
+  // Show the grating FEM results in the (disabled) r_s and Δv/v₀ fields.
+  if (usesGrating(s)) {
+    const g = gratingState.result;
+    el.rs.value = nf(g.rs * 100, 4); s.rs = Number(el.rs.value);
+    el.dvIdt.value = nf(g.dv * 100, 4); s.dvIdt = Number(el.dvIdt.value);
+  }
   // Show the computed velocity shift in the (disabled) Δv/v₀ field.
   if (usesLoading(s)) { el.dvIdt.value = nf(loadState.dv * 100, 4); s.dvIdt = Number(el.dvIdt.value); }
   // Show solver values in the (disabled) substrate fields.

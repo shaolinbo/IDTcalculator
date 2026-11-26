@@ -150,9 +150,32 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 - **P-matrix.** Over a uniform IDT the coefficients are constant, so the transfer from x = 0 to L = Np·λ is closed-form in s² = δ² − κ², with power series where |sL| is small. It gives [b₁, b₂, I] = P [a₁, a₂, V].
 - **Delay line.** The two P-matrices are joined across the gap at the free-surface velocity, including multiple reflections between the IDTs; the single-transit switch drops them. IDT 2's polarity is set so that with r_s = 0 the delay line equals the impulse model.
 - **Stopband.** A long grating reflects in f₀(1 ± |r_s|/π). With this sign convention the lower edge couples to the IDT when r_s < 0, the upper edge when r_s > 0.
-- **Where r_s comes from.** It is not computed. From the stopband edges f₋ < f₊ of a shorted grating with pitch p, for example a COMSOL periodic unit cell: |r_s| = π(f₊ − f₋)/(f₊ + f₋), and the velocity under the IDTs is p(f₊ + f₋) (enter it as Δv/v₀). The sign follows from which edge moves when the grating is opened.
+- **Where r_s comes from.** By default (**COM parameters: Computed**) a periodic-grating finite-element calculation gives r_s and the velocity under the IDTs (see [Periodic-grating FEM](#periodic-grating-fem)). With **Entered**, take them from the stopband edges f₋ < f₊ of a shorted grating with pitch p, for example a COMSOL periodic unit cell: |r_s| = π(f₊ − f₋)/(f₊ + f₋), and the velocity under the IDTs is p(f₊ + f₋) (enter it as Δv/v₀). The sign follows from which edge moves when the grating is opened.
 - **Cost.** About 23 ms for a 2001-point sweep and 0.2 s for the finger-pair sweep.
 - **Limits.** Metallization ratio fixed at 0.5; no end effects at the IDT edges; uniform IDTs only.
+
+### Periodic-grating FEM
+
+**Method.** A finite-element model of one electrode period, like a COMSOL periodic unit cell, at the Bragg condition.
+
+1. **Cell.** One period p wide. Piezoelectric substrate (rotated constants) to a depth of 4λ, clamped and grounded at the bottom; one rectangular metal strip, width ηp (η = 0.5) and thickness h, centred; vacuum above to 2λ, with φ = 0 at the top. Fields do not depend on x₂ (infinite aperture), so each node carries u₁, u₂, u₃ and φ.
+2. **Boundary conditions.** The sides are anti-periodic, f(x + p) = −f(x), so the wavenumber is π/p. The strip is an isotropic elastic conductor: φ = 0 on it (shorted grating) or one floating potential with zero net charge (open grating).
+3. **Elements and solver.** Quadratic 9-node elements, graded toward the strip edges and the surface. The banded system is factorised once; shift-invert subspace iteration gives the two lowest modes, the stopband edges.
+4. **Extraction.** From the shorted edges f₁ < f₂: velocity under the IDTs v = p(f₁ + f₂) and |r_s| = π(f₂ − f₁)/(f₁ + f₂). The edge that is the same for the open grating is uncoupled; the other couples to the IDT, and r_s < 0 when that is the lower edge (the COM convention above).
+5. **Thickness.** h/λ is solved with λ = v/f₀, starting from the first-order film estimate.
+
+**Example** (128°Y, φ = 0, default constants, Al strips, η = 0.5):
+
+| h/λ | 0 | 1 % | 2 % | 3 % | 4 % | 8 % |
+|---|---|---|---|---|---|---|
+| r_s | −1.92 % | −1.27 % | −0.53 % | +0.29 % | +1.20 % | +6.84 % |
+| Velocity under the IDTs (m/s) | 3884.8 | 3875.3 | 3862.3 | 3845.4 | 3824.3 | 3688.3 |
+
+For Al the electrode reflection changes sign near h/λ ≈ 2.6 %. The velocities lie below the first-order estimate v₀ + η(v_film − v₀), by 25 m/s at h = 0 and 200 m/s at h/λ = 8 %.
+
+**Accuracy and cost.** At the default mesh, r_s is within about 0.03 % (absolute) and the velocity within about 2 m/s of a mesh with twice the resolution. One design point (shorted and open grating) takes 1.5–4 s and runs in a background thread.
+
+**Limits.** Rectangular strips of one bulk metal, bonded without an adhesion layer; η fixed at 0.5 in the delay-line model; Rayleigh-type modes only; no bulk-wave radiation from the grating.
 
 **Velocity under the IDTs.** Under the IDTs the SAW is slower than on the free surface, from electrical shorting and the electrodes' mass. The IDT period λ = v₀(1 + Δv/v₀)/f₀, the electrode pitch λ/2 and the transit time inside the IDTs use the shifted velocity; the gap uses v₀. Δv/v₀ is either entered (for example from FEM or a measured resonance) or computed with **Include electrode mass** (see [Electrode mass loading](#electrode-mass-loading)). Details lists the wavelength under the IDTs, the free-surface wavelength v₀/f₀ and, for reference, the metallized-surface wavelength vₘ/f₀.
 
@@ -172,6 +195,7 @@ In **manual** mode, v, K² and Cs are typed in and the solver values are shown f
 | Au | 19.283 | 79 | 0.44 |
 | Cu | 8.935 | 128 | 0.34 |
 | Pt | 21.452 | 168 | 0.38 |
+| Ni | 8.907 | 200 | 0.31 |
 
 Cu is listed as 110–128 GPa; 128 GPa matches its listed shear modulus (48 GPa) and ν = 0.34.
 
@@ -230,6 +254,13 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 - A 300-period grating reflects more than 99 % inside f₀(1 ± |r_s|/π) and less than 50 % at twice that offset; the radiation conductance of a long IDT peaks at the lower edge for r_s < 0 and the upper edge for r_s > 0.
 - The COM delay line with r_s = −2 %, feedthrough, tuning and loss is passive and reciprocal at every frequency.
 
+**Periodic-grating FEM.**
+
+- Without strips the cell gives v₀, and fully metallized it gives vₘ (h = 0) and the continuous-film velocity (Al, h/λ = 2 %), each within 150 ppm.
+- 128°Y, Al, h = 0: r_s between −2.0 % and −1.85 %, lower edge coupled; the uncoupled edge is the same in the shorted and open gratings.
+- For Al on 128°Y, r_s < 0 at h/λ = 2 % and r_s > 0 at 3 %.
+- The default and the doubled mesh agree within 0.05 % in r_s and 3 m/s in velocity.
+
 **Euler angles.**
 
 - The COMSOL angles for 128°Y-X equal COMSOL's example values in 3D and 2D.
@@ -251,7 +282,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 |---|---|---|
 | 1 | Impulse model, delay line, probe ports, pads, export | Done |
 | 2 | Partial-wave solver for any cut and direction; angle sweep | Done |
-| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | In progress: metal-film solver, mass-loading estimate and COM P-matrix model (entered r_s) done; next: r_s and velocity from a periodic-grating calculation, metallization ratio |
+| 3 | Coupling-of-modes (P-matrix) model: electrode reflection, mass loading, metal thickness, metallization ratio | Mostly done: metal-film solver, COM P-matrix model, periodic-grating FEM for r_s and the velocity under the IDTs; next: metallization ratio as an input |
 | 4 | Optimizer: Np, W, metallization ratio and tuning L for lowest loss or widest band, with constraints | Planned |
 | 5 (optional) | Thin-film LiNbO₃ on SiO₂/Si or sapphire | Planned |
 
@@ -280,6 +311,7 @@ Run `npm test` (or `node --test`); the tests use only Node's built-in runner.
 | `src/saw/tensor.js` | Tensors, rotations, Euler angles |
 | `src/saw/solver.js` | Partial-wave solver |
 | `src/saw/substrate.js` | Cached solver calls and angle sweeps |
+| `src/saw/grating.js` | Periodic-grating finite-element unit cell: stopband edges, r_s, velocity under the IDTs |
 | `src/saw/euler.js` | COMSOL and (λ, μ, θ) Euler angles of an orientation |
 | `src/view3d.js` | 3D chip and axes view (Plotly) |
 | `src/saw/worker.js` | Web Worker for angle sweeps |

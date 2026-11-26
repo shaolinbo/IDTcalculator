@@ -3,8 +3,8 @@
 // Velocity, K^2 and Cs come from the partial-wave solver (src/saw/) for any
 // orientation. Published values for Y-Z and 128°Y-X are kept for comparison,
 // and the clamped-permittivity Cs estimate is kept as a quick reference.
-import { EPS0 } from './saw/constants.js?v=a74496df0a';
-import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=a74496df0a';
+import { EPS0 } from './saw/constants.js?v=f4a790d683';
+import { axesFromNP, axesFromEuler } from './saw/tensor.js?v=f4a790d683';
 
 export { EPS0 };
 
@@ -106,4 +106,5 @@ export const METALS = {
   Au: { label: 'Au', rho: 2.21e-8, density: 19283, E: 79e9, nu: 0.44 },
   Cu: { label: 'Cu', rho: 1.68e-8, density: 8935, E: 128e9, nu: 0.34 },
   Pt: { label: 'Pt', rho: 10.6e-8, density: 21452, E: 168e9, nu: 0.38 },
+  Ni: { label: 'Ni', rho: 6.93e-8, density: 8907, E: 200e9, nu: 0.31 }, // all from the Wikipedia infobox, 20 °C
 };
